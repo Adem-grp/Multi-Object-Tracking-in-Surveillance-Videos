@@ -7,10 +7,11 @@ import glob
 import torch
 from natsort import natsorted
 from deep_sort_pytorch.deep_sort import DeepSort
-
+"""yolo detect train data="gmot.yaml" model=yolov8n.pt epochs=50 imgsz=640
+"""
 # --- Load models ---
 device = "cuda" if torch.cuda.is_available() else "cpu"
-model = YOLO("yolov8n.pt")  # YOLOv8 small/faster version
+model = YOLO("runs/detect/train3/weights/best.pt")  # YOLOv8 small/faster version
 deepsort = DeepSort("deep_sort_pytorch/deep_sort/deep/checkpoint/ckpt.t7")
 
 # --- Collect images ---
@@ -41,7 +42,7 @@ print(f"Creating video from: {latest_folder}")
 images = natsorted([img for img in os.listdir(latest_folder) if img.endswith(".jpg")])
 first_frame = cv2.imread(os.path.join(latest_folder, images[0]))
 height, width, _ = first_frame.shape
-output_path = os.path.join(latest_folder, "output_video.mp4")
+output_path = os.path.join(latest_folder, "output_video_fine-tuned.mp4")
 fourcc = 0x7634706d
 fps = 30
 out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
@@ -57,7 +58,7 @@ for img_name in images:
     bbox_xywh, confs, cls_ids = [], [], []
     for *xyxy, conf, cls in detections:
         # --- Filter by confidence threshold ---
-        if conf < 0.5:  # change 0.5 to whatever threshold you want
+        if conf < 0.3:  # change 0.5 to whatever threshold you want
             continue
 
         x1, y1, x2, y2 = xyxy

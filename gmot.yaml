@@ -1,0 +1,21 @@
+# gmot.yaml - dataset configuration for YOLOv8
+
+# Paths to training and validation image folders
+path: C:/Users/USER/PycharmProjects/Multi-Object-Tracking-in-Surveillance-Videos/gmot_yolo
+train: C:/Users/USER/PycharmProjects/Multi-Object-Tracking-in-Surveillance-Videos/gmot_yolo/train/images
+val: C:/Users/USER/PycharmProjects/Multi-Object-Tracking-in-Surveillance-Videos/gmot_yolo/val/images
+
+# Number of classes
+nc: 10
+names:
+  0: class_42
+  1: class_59
+  2: class_130
+  3: class_267
+  4: class_348
+  5: class_460
+  6: class_772
+  7: class_967
+  8: class_973
+  9: class_995
+
