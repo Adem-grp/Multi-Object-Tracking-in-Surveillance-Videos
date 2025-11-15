@@ -1,101 +1,124 @@
-import numpy as np
-from ultralytics import YOLO
-from PIL import Image
-import cv2
 import os
 import glob
-import torch
+import cv2
+import numpy as np
 from natsort import natsorted
-from deep_sort_pytorch.deep_sort import DeepSort
-"""yolo detect train data="gmot.yaml" model=yolov8n.pt epochs=50 imgsz=640
-"""
-# --- Load models ---
+from ultralytics import YOLO
+from PIL import Image
+import torch
+import time
+
+# ---------------- CONFIG ----------------
+YOLO_WEIGHTS = "runs/detect/train3/weights/best.pt"
+IMAGE_GLOB = "GenericMOT_JPEG_Sequence/**/*.jpg"
+OUTPUT_VIDEO = "gmot_iou_tracker.mp4"
+
+CONF_THRES = 0.03
+IMG_SIZE = 1280
+IOU_THRESHOLD = 0.3  # match objects across frames
+# ----------------------------------------
+
 device = "cuda" if torch.cuda.is_available() else "cpu"
-model = YOLO("runs/detect/train3/weights/best.pt")  # YOLOv8 small/faster version
-deepsort = DeepSort("deep_sort_pytorch/deep_sort/deep/checkpoint/ckpt.t7")
+model = YOLO(YOLO_WEIGHTS)
+print("Device:", device)
+print("YOLO Classes:", model.names)
 
-# --- Collect images ---
-all_images = glob.glob(r"GenericMOT_JPEG_Sequence/*/*/*.jpg")
+# Load images
+all_images = natsorted(glob.glob(IMAGE_GLOB, recursive=True))
 valid_images = []
-for img_path in all_images:
+
+for p in all_images:
     try:
-        Image.open(img_path)
-        valid_images.append(img_path)
-    except Exception:
-        print(f"Skipping corrupted image: {img_path}")
-valid_images = natsorted(valid_images)
-print(f"Total valid images: {len(valid_images)}")
+        Image.open(p).verify()
+        valid_images.append(p)
+    except:
+        print("Skipping:", p)
 
-# --- Predict in batches to avoid too many open files ---
-batch_size = 50
-for i in range(0, len(valid_images), batch_size):
-    batch = valid_images[i:i + batch_size]
-    model.predict(source=batch, show=False, save=False)
+if len(valid_images) == 0:
+    raise RuntimeError("No images found!")
 
-# --- Get latest prediction folder ---
-base_path = "runs/detect"
-folders = [os.path.join(base_path, f) for f in os.listdir(base_path) if f.startswith("predict")]
-latest_folder = max(folders, key=os.path.getctime)
-print(f"Creating video from: {latest_folder}")
+print("Total images:", len(valid_images))
 
-# --- Video writer setup ---
-images = natsorted([img for img in os.listdir(latest_folder) if img.endswith(".jpg")])
-first_frame = cv2.imread(os.path.join(latest_folder, images[0]))
-height, width, _ = first_frame.shape
-output_path = os.path.join(latest_folder, "output_video_fine-tuned.mp4")
-fourcc = 0x7634706d
-fps = 30
-out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+# Prepare video
+first = cv2.imread(valid_images[0])
+H, W = first.shape[:2]
+out = cv2.VideoWriter(
+    OUTPUT_VIDEO,
+    cv2.VideoWriter_fourcc(*"mp4v"),
+    30,
+    (W, H)
+)
 
-for img_name in images:
-    frame_path = os.path.join(latest_folder, img_name)
-    frame = cv2.imread(frame_path)
+# ---------------- SIMPLE IOU TRACKER ----------------
+next_track_id = 0
+tracks = {}  # track_id -> last bbox
 
-    # --- YOLO predictions ---
-    results = model.predict(source=frame, conf=0.2, show=False, save=False, verbose=False)
-    detections = results[0].boxes.data.cpu().numpy()
+def compute_iou(a, b):
+    x1 = max(a[0], b[0])
+    y1 = max(a[1], b[1])
+    x2 = min(a[2], b[2])
+    y2 = min(a[3], b[3])
+    inter = max(0, x2-x1) * max(0, y2-y1)
+    areaA = (a[2]-a[0])*(a[3]-a[1])
+    areaB = (b[2]-b[0])*(b[3]-b[1])
+    return inter / (areaA + areaB - inter + 1e-6)
 
-    bbox_xywh, confs, cls_ids = [], [], []
-    for *xyxy, conf, cls in detections:
-        # --- Filter by confidence threshold ---
-        if conf < 0.3:  # change 0.5 to whatever threshold you want
-            continue
+# ----------------------------------------------------
 
-        x1, y1, x2, y2 = xyxy
-        w, h = x2 - x1, y2 - y1
-        x_c, y_c = x1 + w / 2, y1 + h / 2
-        bbox_xywh.append([x_c, y_c, w, h])
-        confs.append(conf)
-        cls_ids.append(int(cls))
+for idx, path in enumerate(valid_images):
+    frame = cv2.imread(path)
 
-    # --- Only run DeepSort if there are remaining high-confidence detections ---
-    if len(bbox_xywh) > 0:
-        bbox_xywh = np.array(bbox_xywh)
-        confs = np.array(confs)
-        cls_ids = np.array(cls_ids)
+    # YOLO detection
+    results = model.predict(frame, conf=CONF_THRES, imgsz=IMG_SIZE, verbose=False)[0]
+    dets = results.boxes.data.cpu().numpy()  # x1,y1,x2,y2,conf,cls
 
-        # --- Run DeepSort ---
-        outputs = deepsort.update(bbox_xywh, confs, cls_ids, frame)
+    bboxes = []
+    clss = []
 
-        if outputs is not None and len(outputs) > 0:
-            for output in outputs:
-                output = np.array(output).flatten()
-                if len(output) != 6:
-                    print("Skipping invalid output:", output)
-                    continue
+    for x1, y1, x2, y2, conf, cls in dets:
+        bboxes.append([float(x1), float(y1), float(x2), float(y2)])
+        clss.append(int(cls))
 
-                x1, y1, x2, y2, track_id, cls_id = [float(o) for o in output]
-                cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
-                cv2.putText(frame, f"ID: {int(track_id)}", (int(x1), int(y1) - 10),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-        else:
-            print(f"No tracks in frame {img_name}")
-    else:
-        print(f"No detections in frame {img_name}")
+    assigned = {}  # det index -> track_id
+    used_tracks = set()
 
-    # --- Write frame to video ---
+    # MATCH EXISTING TRACKS BY IOU
+    for ti, t_bbox in tracks.items():
+        best_iou = 0
+        best_det = -1
+
+        for di, d_bbox in enumerate(bboxes):
+            if di in assigned:
+                continue
+            iou = compute_iou(t_bbox, d_bbox)
+            if iou > best_iou:
+                best_iou = iou
+                best_det = di
+
+        if best_iou >= IOU_THRESHOLD:
+            assigned[best_det] = ti
+            used_tracks.add(ti)
+            tracks[ti] = bboxes[best_det]  # update track
+
+    # NEW TRACKS FOR UNMATCHED DETECTIONS
+    for di, d_bbox in enumerate(bboxes):
+        if di not in assigned:
+            assigned[di] = next_track_id
+            tracks[next_track_id] = d_bbox
+            next_track_id += 1
+
+    # DRAW RESULTS
+    for di, tid in assigned.items():
+        x1, y1, x2, y2 = map(int, bboxes[di])
+        cls_name = model.names[clss[di]]
+
+        cv2.rectangle(frame, (x1, y1), (x2, y2), (0,255,0), 2)
+        cv2.putText(frame, f"{cls_name} ID:{tid}",
+                    (x1, y1-5),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0,255,0), 2)
+
+    print(f"Frame {idx+1}/{len(valid_images)}: Detections={len(bboxes)} Tracks={len(assigned)}")
     out.write(frame)
 
-
 out.release()
-print(f"Saved video to: {output_path}")
+print("Saved:", OUTPUT_VIDEO)
