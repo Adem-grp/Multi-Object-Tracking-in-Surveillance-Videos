@@ -1,101 +1,159 @@
 import os
-import shutil
 import glob
+import shutil
 import random
+from tqdm import tqdm
 import pandas as pd
 import cv2
 
-gmot_path = "C:/Users/USER/PycharmProjects/Multi-Object-Tracking-in-Surveillance-Videos/GenericMOT_JPEG_Sequence"
-yolo_path = "C:/Users/USER/PycharmProjects/Multi-Object-Tracking-in-Surveillance-Videos/gmot_yolo"
-label_root = "C:/Users/USER/PycharmProjects/Multi-Object-Tracking-in-Surveillance-Videos/track_label"
+# ================= User paths =================
+GMOT_ROOT = r"C:/Users/USER/PycharmProjects/Multi-Object-Tracking-in-Surveillance-Videos/GenericMOT_JPEG_Sequence"
+TRACK_LABEL_ROOT = r"C:/Users/USER/PycharmProjects/Multi-Object-Tracking-in-Surveillance-Videos/track_label"
+YOLO_ROOT = r"C:/Users/USER/PycharmProjects/Multi-Object-Tracking-in-Surveillance-Videos/gmot_yolo"
 
-# Create train/val folders
-for split in ["train", "val"]:
-    for sub in ["images", "labels"]:
-        os.makedirs(os.path.join(yolo_path, split, sub), exist_ok=True)
+TRAIN_RATIO = 0.8  # 80/20 split
 
-# Split images
-s_ratio = 0.8
-all_images = glob.glob(os.path.join(gmot_path, "*", "*", "*.jpg"))
-all_images.sort()
-random.shuffle(all_images)
-split_idx = int(len(all_images) * s_ratio)
-train_images = all_images[:split_idx]
-valid_images = all_images[split_idx:]
+# Class mapping
+CLASS_MAP = {
+    "Airplane": 0, "Fish": 1, "Ball": 2, "Bird": 3,
+    "Boat": 4, "Balloon": 5, "Person": 6, "Insect": 7,
+    "Stock": 8, "Car": 9
+}
+CLASS_NAMES = {v: k for k, v in CLASS_MAP.items()}
 
-def copy_images(images, split):
-    dst_folder = os.path.join(yolo_path, split, "images")
-    for img in images:
-        shutil.copy(img, dst_folder)
+# ================= Helpers =================
+def safe_int(s):
+    try:
+        return int(s)
+    except:
+        return None
 
-copy_images(train_images, "train")
-copy_images(valid_images, "val")
+def yolo_bbox(x, y, w, h, img_w, img_h):
+    x_c = (x + w / 2.0) / img_w
+    y_c = (y + h / 2.0) / img_h
+    w_n = w / img_w
+    h_n = h / img_h
+    return x_c, y_c, w_n, h_n
 
+# ================= Main =================
+labels_by_image = {}
+all_images = []
 
-def convert_gmot_to_yolo(img_root, label_root, out_root):
-    os.makedirs(out_root, exist_ok=True)
-    label_files = glob.glob(os.path.join(label_root, "*.txt"))
+folders = sorted(glob.glob(os.path.join(GMOT_ROOT, "*")))
+print(f"Found {len(folders)} class folders")
 
-    for f in label_files:
-        set_name = os.path.splitext(os.path.basename(f))[0]  # e.g., airplane-0
-        class_name = set_name.split("-")[0]
-        class_id = hash(class_name) % 1000  # numeric ID
+for folder in tqdm(folders, desc="Processing class folders"):
+    folder_name = os.path.basename(folder)
+    class_name = folder_name.split("-")[0].capitalize()
+    if class_name not in CLASS_MAP:
+        print(f"Skipping unknown class folder: {folder_name}")
+        continue
+    class_id = CLASS_MAP[class_name]
 
-        img_folder = os.path.join(img_root, set_name, "img1")
-        if not os.path.exists(img_folder):
+    img_dir = os.path.join(folder, "img1")
+    if not os.path.isdir(img_dir):
+        continue
+    imgs = sorted(glob.glob(os.path.join(img_dir, "*.jpg")))
+    if not imgs:
+        continue
+
+    # Detect first image index
+    first_basename = os.path.splitext(os.path.basename(imgs[0]))[0]
+    first_index = safe_int(first_basename.lstrip("0")) if first_basename.lstrip("0") != "" else 0
+
+    # Read label file
+    label_file_candidates = glob.glob(os.path.join(TRACK_LABEL_ROOT, f"{folder_name}.txt"))
+    if not label_file_candidates:
+        print(f"No label file for {folder_name}, skipping...")
+        continue
+    label_file = label_file_candidates[0]
+
+    try:
+        df = pd.read_csv(label_file, header=None)
+    except Exception as e:
+        print(f"Failed reading {label_file}: {e}")
+        continue
+
+    if df.shape[1] < 7:
+        print(f"Unexpected columns in {label_file}, skipping...")
+        continue
+
+    df.columns = list(range(df.shape[1]))
+
+    # Iterate rows
+    for idx, row in df.iterrows():
+        frame = safe_int(row[0])
+        x, y, w_box, h_box = float(row[2]), float(row[3]), float(row[4]), float(row[5])
+        if frame is None or w_box <= 0 or h_box <= 0:
             continue
 
-        df = pd.read_csv(f, header=None)
-        df.columns = ["frame", "id", "x", "y", "w", "h", "conf", "cls", "vis1", "vis2"]
-        grouped = df.groupby("frame")
-        images = sorted(glob.glob(os.path.join(img_folder, "*.jpg")))
+        # Map frame -> filename
+        img_index = first_index + frame
+        img_name = f"{img_index:06d}.jpg"
+        img_path = os.path.join(img_dir, img_name)
+        if not os.path.exists(img_path):
+            continue
 
-        for img_path in images:
-            img_name = os.path.basename(img_path)
-            frame_no = int(os.path.splitext(img_name)[0])
-            if frame_no not in grouped.groups:
-                continue
+        # Read image for size
+        im = cv2.imread(img_path)
+        if im is None:
+            continue
+        H, W = im.shape[:2]
 
-            img = cv2.imread(img_path)
-            if img is None:
-                continue
+        x_c, y_c, w_n, h_n = yolo_bbox(x, y, w_box, h_box, W, H)
+        line = f"{class_id} {x_c:.6f} {y_c:.6f} {w_n:.6f} {h_n:.6f}"
 
-            H, W = img.shape[:2]
-            rows = grouped.get_group(frame_no)
-            yolo_lines = []
+        labels_by_image.setdefault(img_path, []).append(line)
+        all_images.append(img_path)
 
-            for _, row in rows.iterrows():
-                x_center = (row['x'] + row['w'] / 2) / W
-                y_center = (row['y'] + row['h'] / 2) / H
-                width = row['w'] / W
-                height = row['h'] / H
-                yolo_lines.append(f"{class_id} {x_center:.6f} {y_center:.6f} {width:.6f} {height:.6f}")
+# Deduplicate
+all_images = sorted(set(all_images))
+if not all_images:
+    raise SystemExit("No labeled images found. Check CSV mapping!")
 
-            out_file = os.path.join(out_root, f"{set_name}_{os.path.splitext(img_name)[0]}.txt")
+# ================= Split train/val =================
+random.shuffle(all_images)
+split_idx = int(len(all_images) * TRAIN_RATIO)
+train_list = all_images[:split_idx]
+val_list = all_images[split_idx:]
 
-            with open(out_file, "w") as f_out:
-                f_out.write("\n".join(yolo_lines))
+# Create folders
+for split, lst in [("train", train_list), ("val", val_list)]:
+    img_out = os.path.join(YOLO_ROOT, split, "images")
+    lbl_out = os.path.join(YOLO_ROOT, split, "labels")
+    os.makedirs(img_out, exist_ok=True)
+    os.makedirs(lbl_out, exist_ok=True)
 
+    for img_path in tqdm(lst, desc=f"Writing {split}"):
+        basename = os.path.basename(img_path)
+        name_noext = os.path.splitext(basename)[0]
+        dst_img = os.path.join(img_out, basename)
+        dst_lbl = os.path.join(lbl_out, f"{name_noext}.txt")
 
-# Convert all track labels to YOLO format
-converted_labels_root = os.path.join(yolo_path, "labels_all")
-convert_gmot_to_yolo(gmot_path, label_root, converted_labels_root)
+        shutil.copy2(img_path, dst_img)
+        lines = labels_by_image.get(img_path, [])
+        with open(dst_lbl, "w") as f:
+            f.write("\n".join(lines))
 
+# ================= Write YAML =================
+yaml_path = os.path.join(YOLO_ROOT, "gmot.yaml")
+names_block = "\n".join([f"  {i}: {CLASS_NAMES[i]}" for i in sorted(CLASS_NAMES.keys())])
+yaml_content = f"""# GMOT -> YOLO dataset config
+path: {YOLO_ROOT}
+train: {os.path.join(YOLO_ROOT, 'train', 'images')}
+val: {os.path.join(YOLO_ROOT, 'val', 'images')}
+nc: {len(CLASS_NAMES)}
+names:
+{names_block}
+"""
+with open(yaml_path, "w") as f:
+    f.write(yaml_content)
 
-def copy_labels(images, split):
-    label_dest = os.path.join(yolo_path, split, "labels")
-    os.makedirs(label_dest, exist_ok=True)
-
-    for img_path in images:
-        img_name = os.path.basename(img_path)
-        set_name = img_path.split(os.sep)[-3]  # e.g., airplane-0
-        label_file_name = f"{set_name}_{img_name.replace('.jpg','.txt')}"
-        src_label_path = os.path.join(converted_labels_root, label_file_name)
-        dst_label_path = os.path.join(label_dest, img_name.replace('.jpg','.txt'))
-
-        if os.path.exists(src_label_path):
-            shutil.copy(src_label_path, dst_label_path)
-
-
-copy_labels(train_images, "train")
-copy_labels(valid_images, "val")
+# ================= Summary =================
+print("\n========== SUMMARY ==========")
+print(f"Total labeled images: {len(all_images)}")
+print(f"Train set: {len(train_list)} images")
+print(f"Val set:   {len(val_list)} images")
+print(f"YAML saved to: {yaml_path}")
+print("==============================")
+print(f"You can now train YOLOv8 with:\n  yolo detect train data={yaml_path} model=yolov8n.pt epochs=50 imgsz=640")
