@@ -1,6 +1,41 @@
 import glob
 from collections import Counter
 import os
+
+import os
+import glob
+
+# Your dataset root
+ROOT = r"C:/Users/USER/PycharmProjects/Multi-Object-Tracking-in-Surveillance-Videos/gmot_yolo"
+
+# Folder → class ID mapping
+class_map = {
+    "Airplane": 0,
+    "Fish": 1,
+    "Ball": 2,
+    "Bird": 3,
+    "Boat": 4,
+    "Balloon": 5,
+    "Person": 6,
+    "Insect": 7,
+    "Stock": 8,
+    "Car": 9,
+}
+
+label_files = glob.glob("gmot_yolo/**/**/*.txt", recursive=True)
+class_counts = Counter()
+
+for lf in label_files:
+    with open(lf, "r") as f:
+        for line in f:
+            if line.strip():
+                cls_id = int(line.split()[0])
+                class_counts[cls_id] += 1
+
+print("Classes found:", sorted(class_counts.keys()))
+for cls, cnt in class_counts.items():
+    print(f"Class {cls}: {cnt} labels")
+
 label_files = glob.glob("gmot_yolo/**/**/*.txt", recursive=True)
 
 class_counts = Counter()
