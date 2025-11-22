@@ -9,15 +9,15 @@ import cv2
 # ================= User paths =================
 GMOT_ROOT = r"C:/Users/USER/PycharmProjects/Multi-Object-Tracking-in-Surveillance-Videos/GenericMOT_JPEG_Sequence"
 TRACK_LABEL_ROOT = r"C:/Users/USER/PycharmProjects/Multi-Object-Tracking-in-Surveillance-Videos/track_label"
-YOLO_ROOT = r"C:/Users/USER/PycharmProjects/Multi-Object-Tracking-in-Surveillance-Videos/gmot_yolo"
+YOLO_ROOT = r"C:/Users/USER/PycharmProjects/Multi-Object-Tracking-in-Surveillance-Videos/datasets/gmot_yolo"
 
 TRAIN_RATIO = 0.8  # 80/20 split
 
 # Class mapping
 CLASS_MAP = {
-    "Airplane": 0, "Fish": 1, "Ball": 2, "Bird": 3,
-    "Boat": 4, "Balloon": 5, "Person": 6, "Insect": 7,
-    "Stock": 8, "Car": 9
+    "airplane": 0, "fish": 1, "ball": 2, "bird": 3,
+    "boat": 4, "balloon": 5, "person": 6, "insect": 7,
+    "stock": 8, "car": 9
 }
 CLASS_NAMES = {v: k for k, v in CLASS_MAP.items()}
 
@@ -44,7 +44,7 @@ print(f"Found {len(folders)} class folders")
 
 for folder in tqdm(folders, desc="Processing class folders"):
     folder_name = os.path.basename(folder)
-    class_name = folder_name.split("-")[0].capitalize()
+    class_name = folder_name.split("-")[0].lower()
     if class_name not in CLASS_MAP:
         print(f"Skipping unknown class folder: {folder_name}")
         continue
