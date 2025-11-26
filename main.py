@@ -62,8 +62,8 @@ SEQUENCES = [
 
 # Per-sequence device override (VRAM-safe: GMOT on GPU, Bridge on CPU by default)
 DEVICE_MAP = {
-    "gmot_yolo_val": DEVICE,  # e.g., 0
-    "bridge_yolo_val": "cpu", # safer default; flip to DEVICE if you want GPU
+    "gmot_yolo_val": DEVICE,
+    "bridge_yolo_val": DEVICE,
 }
 
 # =========================
@@ -181,7 +181,6 @@ def track_sequence(model: YOLO, image_files: list, seq_name: str, device_overrid
     Track a sequence:
     - Append per-frame rows to TRACKS_CSV (header once).
     - Append per-run totals to TOTALS_CSV (per-class aggregate in JSON).
-    - Append a blank line after each run to separate blocks.
     - Visuals optional via SAVE_VIS.
     - OOM-safe: reduces imgsz then CPU fallback if needed (when using GPU).
     """
