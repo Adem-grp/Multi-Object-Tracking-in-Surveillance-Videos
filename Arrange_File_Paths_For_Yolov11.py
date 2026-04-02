@@ -1,13 +1,15 @@
-
+import configparser
 import os
 import glob
 import shutil
 import random
+
+from sqlalchemy.dialects.oracle.dictionary import all_sequences
 from tqdm import tqdm
 import pandas as pd
 import cv2
 
-# ================= User paths =================
+# turning GMOT to yolo format
 GMOT_ROOT = r"C:/Users/USER/PycharmProjects/Multi-Object-Tracking-in-Surveillance-Videos/GenericMOT_JPEG_Sequence"
 TRACK_LABEL_ROOT = r"C:/Users/USER/PycharmProjects/Multi-Object-Tracking-in-Surveillance-Videos/track_label"
 YOLO_ROOT = r"C:/Users/USER/PycharmProjects/Multi-Object-Tracking-in-Surveillance-Videos/datasets/gmot_yolo"
@@ -35,10 +37,12 @@ ALIASES = {
     # add more if needed
 }
 
+
 # ================= Helpers =================
 def normalize_class_name(name: str) -> str:
     name = name.strip().lower()
     return ALIASES.get(name, name)
+
 
 def safe_int(s):
     try:
@@ -46,13 +50,15 @@ def safe_int(s):
     except Exception:
         return None
 
+
 def yolo_bbox(x, y, w, h, img_w, img_h):
     """Convert pixel bbox (top-left x,y,w,h) to YOLO normalized (xc,yc,w,h)."""
     x_c = (x + w / 2.0) / max(img_w, 1)
     y_c = (y + h / 2.0) / max(img_h, 1)
-    w_n = w / max(img_w, 1)
+    w_n = w / max(img_w, 1)  # normalization is done with max(img_w/h,1)
     h_n = h / max(img_h, 1)
     return x_c, y_c, w_n, h_n
+
 
 def detect_first_index(imgs):
     """Infer the first numeric index from the first filename."""
@@ -61,6 +67,22 @@ def detect_first_index(imgs):
     first_basename = os.path.splitext(os.path.basename(imgs[0]))[0]
     stripped = first_basename.lstrip("0")
     return safe_int(stripped) if stripped != "" else 0
+
+
+def read_seq_dims(folder: str):  # create seqinfo.ini and read the width and height from there
+    seq_info_path = os.path.join(folder, "seqinfo.ini")
+    # if the file doesn't exist or is malformed cv2.imread is performed tho
+    if not os.path.isfile(seq_info_path):
+        return None
+    cfg = configparser.ConfigParser()
+    cfg.read(seq_info_path, encoding="utf-8")
+    try:
+        W = int(cfg["Sequence"]["imWidth"])
+        H = int(cfg["Sequence"]["imHeight"])
+        return W, H
+    except(KeyError, ValueError):
+        return None
+
 
 def best_frame_offset(label_df, img_dir, first_index):
     """Try offsets 0 and 1; choose the one that maps to most existing image files."""
@@ -86,19 +108,17 @@ def best_frame_offset(label_df, img_dir, first_index):
             if os.path.exists(img_path):
                 hits += 1
         return hits
+    return 0 if hit_count(0) >= hit_count(1) else 1
 
-    c0 = hit_count(0)
-    c1 = hit_count(1)
-    return 0 if c0 >= c1 else 1
 
 # ================= Main =================
 def main():
     os.makedirs(YOLO_ROOT, exist_ok=True)
 
-    labels_by_image = {}   # key: original img_path, value: list of yolo lines
-    image_sizes_cache = {} # key: original img_path, value: (H,W)
-    all_images = []        # unique original img paths that have at least one label
-
+    labels_by_image = {}  # key: original img_path, value: list of yolo lines
+    image_sizes_cache = {}  # key: original img_path, value: (H,W)
+    all_images = []  # unique original img paths that have at least one label
+    seq_of_image = {}
     folders = sorted(glob.glob(os.path.join(GMOT_ROOT, "*")))
     print(f"Found {len(folders)} class/sequence folders under GMOT_ROOT")
 
@@ -140,11 +160,16 @@ def main():
 
         offset = best_frame_offset(df, img_dir, first_index)
 
+        seq_dims = read_seq_dims(folder_name)
+
         # Iterate rows and convert to YOLO labels
         for _, row in df.iterrows():
-            frame = safe_int(row[0])      # frame index within sequence
+            frame = safe_int(row[0])  # frame index within sequence
             try:
-                x = float(row[2]); y = float(row[3]); w_box = float(row[4]); h_box = float(row[5])
+                x = float(row[2])
+                y = float(row[3])
+                w_box = float(row[4])
+                h_box = float(row[5])
             except Exception:
                 continue
             if frame is None or w_box <= 0 or h_box <= 0:
@@ -158,7 +183,12 @@ def main():
                 continue
 
             # Read image size once
-            if img_path in image_sizes_cache:
+            # determine image dimensions -fast path first seq dims
+            # fast path uses the dimensions that has been already read from seqinfo.ini
+            # all frames in one sequence share the same resolution
+            if seq_dims is not None:
+                W,H = seq_dims
+            elif img_path in image_sizes_cache:
                 H, W = image_sizes_cache[img_path]
             else:
                 im = cv2.imread(img_path)
@@ -172,6 +202,7 @@ def main():
 
             labels_by_image.setdefault(img_path, []).append(line)
             all_images.append(img_path)
+            seq_of_image[img_path] = folder_name
 
     # Deduplicate
     all_images = sorted(set(all_images))
@@ -179,18 +210,35 @@ def main():
         raise SystemExit("No labeled images found. Check CSV mapping and folder names!")
 
     # ================= Split train/val/test =================
+    # fixed sequence-level split
+    # splitting individual frames randomly caused data leakage.
+    # frames from the same video that are 1-2 frames apart can end up in both train and val
+    # now we collected the unique sequence names, shuffled and split them
+    # then assign every frame to whatever split its parent sequence landed in
+    # This will ensure that it is a proper split
     if abs(TRAIN_RATIO + VAL_RATIO + TEST_RATIO - 1.0) > 1e-6:
         raise SystemExit("Train/Val/Test ratios must sum to 1.0")
 
+    all_sequences_ = sorted(set(seq_of_image[p] for p in all_images))
+    print(f"Found {len(all_sequences_)} sequences in {len(all_images)} images")
+
     random.seed(RANDOM_SEED)
-    random.shuffle(all_images)
-    total = len(all_images)
+    random.shuffle(all_sequences_)
+
+    total = len(all_sequences_)
     train_end = int(total * TRAIN_RATIO)
     val_end = train_end + int(total * VAL_RATIO)
 
-    train_list = all_images[:train_end]
-    val_list = all_images[train_end:val_end]
-    test_list = all_images[val_end:]
+    train_seq = set(all_images[:train_end])
+    val_seq = set(all_images[train_end:val_end])
+    test_seq = set(all_images[val_end:])
+
+    train_list = [p for p in all_images if seq_of_image[p] in train_seq]
+    val_list = [p for p in all_images if seq_of_image[p] in val_seq]
+    test_list = [p for p in all_images if seq_of_image[p] in test_seq]
+
+    assert len(train_list)+len(val_list)+len(test_list) == len(all_images), "Split counts do not sum up to total images!"
+
 
     splits = [("train", train_list), ("val", val_list), ("test", test_list)]
 
@@ -205,7 +253,7 @@ def main():
             basename = os.path.basename(img_path)
             name_noext = os.path.splitext(basename)[0]
             # Avoid filename collisions across sequences: prefix with parent sequence folder
-            parent_seq = os.path.basename(os.path.dirname(os.path.dirname(img_path)))  # the '{class}-xx' folder
+            parent_seq = seq_of_image[img_path]
             safe_prefix = parent_seq.replace(" ", "_")
             out_img_name = f"{safe_prefix}_{name_noext}.jpg"
             out_lbl_name = f"{safe_prefix}_{name_noext}.txt"
@@ -262,7 +310,9 @@ def main():
     print(f"Test set:  {len(test_list)} images")
     print(f"YAML saved to: {yaml_path}")
     print("==============================")
-    print(f"You can now train YOLOv8 with:\n  yolo detect train data={yaml_path} model=yolov8s.pt epochs=50 imgsz=640 batch=16")
+    print(
+        f"You can now train YOLOv11 with:\n  yolo detect train data={yaml_path} model=yolov11n.pt epochs=50 imgsz=640 batch=16")
+
 
 if __name__ == "__main__":
     main()
