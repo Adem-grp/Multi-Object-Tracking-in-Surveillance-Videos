@@ -1,15 +1,31 @@
-
-# avenue_bridge.py
 """
-Avenue -> Bridge labels using COCO-pretrained YOLO mapped to GMOT taxonomy.
-Run directly in PyCharm (Shift+F10). No CLI args required.
+bridge.py
+=========
+Universal bridge script. Replaces both coco_bridge.py and avenue_bridge.py.
 
-Inputs:
-    datasets/avenue_yolo/<split>/images
-Outputs:
-    datasets/bridge_yolo/avenue/<split>/{images,labels}
-Processes only 'train' and 'val'; skips 'test' by design (benchmarking).
-Chunked inference prevents 'Too many open files' on Windows.
+PURPOSE:
+  You have datasets whose images have no bounding-box annotations (Avenue, etc.)
+  or datasets where you want to supplement ground-truth with pseudo-labels
+  (GMOT frames not covered by the track_label files).
+
+  This script runs a COCO-pretrained YOLOv11 model on those images and converts
+  the detections into YOLO-format label files using the GMOT class taxonomy.
+  The result is placed in datasets/bridge_yolo/<dataset_name>/ so it can be
+  listed alongside real labels in gmot.yaml.
+
+HOW TO USE:
+  Set SOURCE_DATASET to the name of your dataset (e.g., "avenue", "gmot").
+  Set SRC_ROOT to the folder that contains train/images, val/images, etc.
+  Run the script. Done.
+
+WHY stream=False + chunking:
+  stream=True returns a generator that keeps image file handles open until the
+  generator is exhausted. On Windows this quickly hits the OS limit on open file
+  descriptors when processing large directories. stream=False returns a complete
+  list per batch, so Python can garbage-collect and close handles between chunks.
+  PENDING_CHUNK controls how many images are passed to model.predict() at once.
+
+Of course, the test split is intentionally excluded from SPLITS since we don't want to contaminate the test set with pseudo-labels. Only train and val are processed.
 """
 
 import gc
@@ -18,24 +34,29 @@ from pathlib import Path
 from typing import Dict, List, Iterable
 from ultralytics import YOLO
 
-# ===================== CONFIG (edit paths if needed) =====================
-SRC_ROOT   = Path(r"C:/Users/USER/PycharmProjects/Multi-Object-Tracking-in-Surveillance-Videos/datasets/avenue_yolo")
-DST_ROOT   = Path(r"C:/Users/USER/PycharmProjects/Multi-Object-Tracking-in-Surveillance-Videos/datasets/bridge_yolo/avenue")
+# Source dataset is used to specify the dataset being bridged of course name of the output folder needs to be used
+SOURCE_DATASET = "avenue"
 
-MODEL      = "yolov8s.pt"    # COCO-pretrained weights
-CONF       = 0.45
-IOU        = 0.50
-IMGSZ      = 640
-BATCH      = 16
-DEVICE     = ""              # "", "cpu", "cuda", "0", "0,1"
-WRITE_EMPTY = True           # write empty .txt when no detections
-OVERWRITE   = False          # skip existing outputs unless True
+# ===================== CONFIG  =====================
+SRC_ROOT = Path(r"C:/Users/USER/PycharmProjects/Multi-Object-Tracking-in-Surveillance-Videos"
+                rf"/datasets/{SOURCE_DATASET}_yolo")
+DST_ROOT = Path(r"C:/Users/USER/PycharmProjects/Multi-Object-Tracking-in-Surveillance-Videos"
+                rF"/datasets/bridge_yolo/{SOURCE_DATASET}")
 
-SPLITS = ["train", "val"]    # test intentionally skipped
+MODEL = "yolov11n.pt"  # COCO-pretrained weights
+CONF = 0.5  # below this treshold is discarded for  higher precision, above for higher recall
+IOU = 0.50  # NMS IoU threshold for suppressing overlapping boxes
+IMGSZ = 640  # this is inference resolution matches YOLO training defaut
+BATCH = 16  # first try 16 batch if computer can handle it move it to 32
+DEVICE = "cuda"  # "", "cpu", "cuda", "0", "0,1"
+WRITE_EMPTY = True  # write empty .txt when no detections # can check the failures and modify conf etc.
+OVERWRITE = False  # skip existing outputs unless True
+
+SPLITS = ["train", "val"]  # test intentionally skipped
 IMG_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
 
-# Limit concurrent open files by chunking the pending list
-PENDING_CHUNK = 256  # reduce if you still hit the error (e.g., 128 or 64)
+# controls how many image paths are passed to model.predict() at once smaller batches reduce memory
+PENDING_CHUNK = 128
 
 # ===================== GMOT taxonomy & mapping =====================
 GMOT_NAMES = {
@@ -65,19 +86,27 @@ COCO_TO_GMOT_ID: Dict[str, int] = {
     # "frisbee": 2, "skateboard": 2,
 }
 
+
 # ===================== HELPERS =====================
 def ensure_dir(p: Path):
     p.mkdir(parents=True, exist_ok=True)
 
+
 def dir_has_images(dir_path: Path) -> bool:
     return dir_path.exists() and any(p.is_file() and p.suffix.lower() in IMG_EXTS for p in dir_path.iterdir())
+
 
 def list_images(dir_path: Path) -> List[Path]:
     return sorted([p for p in dir_path.iterdir() if p.is_file() and p.suffix.lower() in IMG_EXTS])
 
+
 def yolo_label_path(dst_labels_dir: Path, image_name: str) -> Path:
     return dst_labels_dir / f"{Path(image_name).stem}.txt"
 
+
+# Writes YOLO label lines to disk
+# if lines are empty and Write empty is true writes an empty file
+# if overwrite is false skips the file if exists
 def write_yolo_lines(lbl_path: Path, lines: List[str]):
     lbl_path.parent.mkdir(parents=True, exist_ok=True)
     if lbl_path.exists() and not OVERWRITE:
@@ -91,16 +120,19 @@ def write_yolo_lines(lbl_path: Path, lines: List[str]):
         return
     lbl_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
+
 def chunked(iterable: List[str], size: int) -> Iterable[List[str]]:
     for i in range(0, len(iterable), size):
-        yield iterable[i:i+size]
+        yield iterable[i:i + size]
+
 
 # ===================== CORE =====================
 def process_split(model: YOLO, split: str):
-    src_dir     = SRC_ROOT / split / "images"
-    dst_images  = DST_ROOT / split / "images"
-    dst_labels  = DST_ROOT / split / "labels"
-    ensure_dir(dst_images); ensure_dir(dst_labels)
+    src_dir = SRC_ROOT / split / "images"
+    dst_images = DST_ROOT / split / "images"
+    dst_labels = DST_ROOT / split / "labels"
+    ensure_dir(dst_images)
+    ensure_dir(dst_labels)
 
     if not dir_has_images(src_dir):
         print(f"[WARN] No images found in: {src_dir}. Skipping {split}.")
@@ -119,6 +151,7 @@ def process_split(model: YOLO, split: str):
 
     print(f"[INFO] {split}: running inference on {len(pending)} images in chunks of {PENDING_CHUNK}...")
 
+    coco_names = model.names
     count_imgs = 0
     for batch_paths in chunked(pending, PENDING_CHUNK):
         # IMPORTANT: use stream=False here to let Ultralytics close files per batch more promptly
@@ -128,14 +161,12 @@ def process_split(model: YOLO, split: str):
             iou=IOU,
             imgsz=IMGSZ,
             device=DEVICE,
-            stream=False,     # <-- batch returns a list; helps resource cleanup
+            stream=False,  # <-- batch returns a list; helps resource cleanup
             batch=BATCH,
             verbose=False,
             save=False,
-            workers=0,        # fewer background workers -> fewer open handles on Windows
+            workers=0,  # fewer background workers -> fewer open handles on Windows
         )
-        coco_names = model.names
-
         for r in results:
             img_path_str = getattr(r, "path", None)
             if not img_path_str:
@@ -145,6 +176,7 @@ def process_split(model: YOLO, split: str):
                 continue
 
             count_imgs += 1
+            # for copying image to bridge destination
             out_img = dst_images / src_img.name
             if not out_img.exists() or OVERWRITE:
                 try:
@@ -162,10 +194,10 @@ def process_split(model: YOLO, split: str):
                 write_yolo_lines(lbl_path, [])
                 continue
 
-            # Prefer normalized boxes when available
+            # xywhn is basically bounding boxed that are normalised by image size
+            cls = boxes.cls.cpu().numpy()
             xywhn = getattr(boxes, "xywhn", None)
-            xywh  = getattr(boxes, "xywh", None)
-            cls   = boxes.cls.cpu().numpy()
+            xywh = getattr(boxes, "xywh", None)
 
             lines: List[str] = []
             if xywhn is not None:
@@ -202,13 +234,18 @@ def process_split(model: YOLO, split: str):
 
     print(f"[OK] {split}: processed images: {count_imgs}")
 
+
 # ===================== RUN =====================
 def main():
+    print(f"{SOURCE_DATASET} is being bridged")
+    print(f"Source root: {SRC_ROOT}")
+    print(f"Output root: {DST_ROOT}")
     DST_ROOT.mkdir(parents=True, exist_ok=True)
     model = YOLO(MODEL)
     for split in SPLITS:
         process_split(model, split)
-    print("[DONE] Avenue Bridge written to:", DST_ROOT)
+    print(f"[DONE] {SOURCE_DATASET} Bridge written to: {DST_ROOT}")
+
 
 if __name__ == "__main__":
     main()
