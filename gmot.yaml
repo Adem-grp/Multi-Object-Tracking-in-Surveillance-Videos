@@ -1,21 +1,22 @@
-
+# gmot is already defined so no need for a bridge there
 
 path: .
 train:
   - datasets/gmot_yolo/train/images
-  - datasets/bridge_yolo/train/images
-  # add more datasets here, e.g.:
-  # - datasets/avenue_bridge/train/images
-  # - datasets/XYZ_bridge/train/images
+  - datasets/bridge_yolo/avenue/train/images
+  # add more datasets here
 val:
   - datasets/gmot_yolo/val/images
-  - datasets/bridge_yolo/val/images
+  - datasets/bridge_yolo/avenue/val/images
   # add more datasets here, e.g.:
   # - datasets/avenue_bridge/val/images
   # - datasets/XYZ_bridge/val/images
-
+test:
+    - datasets/gmot_yolo/test/images
+    # I need to add the dataset that I will label here with CVAT
+    -
 # unified class set (add 'bridge' at index 10)
-nc: 11
+nc: 10
 names:
   0: airplane
   1: fish
@@ -28,3 +29,12 @@ names:
   8: stock
   9: car
   10: bridge
+# not last layer only hyper parameter tuning evaluation
+# which pretrained models has the better result yolov8s
+# whicch is the best  can they be optimized ways of optimizing the trackers
+# prepare research proposal
+# search for optimization methods
+# accuracy traking timer put and memory usage ,
+# comparative evaluation of trying multiple methods or tuning the methods and compararison between them to see which is better
+# processing speed
+# expolarition of methods
