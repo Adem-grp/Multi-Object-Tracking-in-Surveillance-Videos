@@ -43,11 +43,11 @@ SRC_ROOT = Path(r"C:/Users/USER/PycharmProjects/Multi-Object-Tracking-in-Surveil
 DST_ROOT = Path(r"C:/Users/USER/PycharmProjects/Multi-Object-Tracking-in-Surveillance-Videos"
                 rF"/datasets/bridge_yolo/{SOURCE_DATASET}")
 
-MODEL = "yolov11n.pt"  # COCO-pretrained weights
+MODEL = "yolo11n.pt"  # COCO-pretrained weights
 CONF = 0.5  # below this treshold is discarded for  higher precision, above for higher recall
 IOU = 0.50  # NMS IoU threshold for suppressing overlapping boxes
 IMGSZ = 640  # this is inference resolution matches YOLO training defaut
-BATCH = 16  # first try 16 batch if computer can handle it move it to 32
+BATCH = 32  # first try 16 batch if computer can handle it move it to 32
 DEVICE = "cuda"  # "", "cpu", "cuda", "0", "0,1"
 WRITE_EMPTY = True  # write empty .txt when no detections # can check the failures and modify conf etc.
 OVERWRITE = False  # skip existing outputs unless True

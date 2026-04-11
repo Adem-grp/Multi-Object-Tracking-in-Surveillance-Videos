@@ -20,7 +20,7 @@ from collections import Counter
 import glob
 
 # Your dataset root
-ROOT = r"C:/Users/USER/PycharmProjects/Multi-Object-Tracking-in-Surveillance-Videos/gmot_yolo"
+ROOT = r"C:/Users/USER/PycharmProjects/Multi-Object-Tracking-in-Surveillance-Videos/datasets/gmot_yolo"
 
 # Folder → class ID mapping
 class_map = {
