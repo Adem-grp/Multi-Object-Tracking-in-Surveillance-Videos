@@ -20,7 +20,7 @@ from collections import Counter
 import glob
 
 # Your dataset root
-ROOT = r"C:/Users/USER/PycharmProjects/Multi-Object-Tracking-in-Surveillance-Videos/avenue_yolo"
+ROOT = r"C:/Users/USER/PycharmProjects/Multi-Object-Tracking-in-Surveillance-Videos/gmot_yolo"
 
 # Folder → class ID mapping
 class_map = {
@@ -118,4 +118,4 @@ if __name__ == "__main__":
     audit_labels()
     # if files have old COCO IDs so run at start when you create stuff
     # run all datasets just in case as well
-    # remap_labels
+    #remap_labels()

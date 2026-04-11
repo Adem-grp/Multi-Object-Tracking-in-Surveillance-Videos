@@ -108,6 +108,7 @@ def best_frame_offset(label_df, img_dir, first_index):
             if os.path.exists(img_path):
                 hits += 1
         return hits
+
     return 0 if hit_count(0) >= hit_count(1) else 1
 
 
@@ -187,7 +188,7 @@ def main():
             # fast path uses the dimensions that has been already read from seqinfo.ini
             # all frames in one sequence share the same resolution
             if seq_dims is not None:
-                W,H = seq_dims
+                W, H = seq_dims
             elif img_path in image_sizes_cache:
                 H, W = image_sizes_cache[img_path]
             else:
@@ -229,16 +230,16 @@ def main():
     train_end = int(total * TRAIN_RATIO)
     val_end = train_end + int(total * VAL_RATIO)
 
-    train_seq = set(all_images[:train_end])
-    val_seq = set(all_images[train_end:val_end])
-    test_seq = set(all_images[val_end:])
+    train_seq = set(all_sequences_[:train_end])
+    val_seq = set(all_sequences_[train_end:val_end])
+    test_seq = set(all_sequences_[val_end:])
 
     train_list = [p for p in all_images if seq_of_image[p] in train_seq]
     val_list = [p for p in all_images if seq_of_image[p] in val_seq]
     test_list = [p for p in all_images if seq_of_image[p] in test_seq]
 
-    assert len(train_list)+len(val_list)+len(test_list) == len(all_images), "Split counts do not sum up to total images!"
-
+    assert len(train_list) + len(val_list) + len(test_list) == len(
+        all_images), "Split counts do not sum up to total images!"
 
     splits = [("train", train_list), ("val", val_list), ("test", test_list)]
 
@@ -265,21 +266,6 @@ def main():
             lines = labels_by_image.get(img_path, [])
             with open(dst_lbl, "w", encoding="utf-8") as f:
                 f.write("\n".join(lines))
-
-    # ================= Write YAML =================
-    yaml_path = os.path.join(YOLO_ROOT, "gmot.yaml")
-    names_list = [CLASS_NAMES[i] for i in sorted(CLASS_NAMES.keys())]
-    yaml_content = (
-        f"# GMOT -> YOLO dataset config\n"
-        f"path: {YOLO_ROOT}\n"
-        f"train: {os.path.join(YOLO_ROOT, 'train', 'images')}\n"
-        f"val: {os.path.join(YOLO_ROOT, 'val', 'images')}\n"
-        f"test: {os.path.join(YOLO_ROOT, 'test', 'images')}\n"
-        f"nc: {len(names_list)}\n"
-        f"names: {names_list}\n"
-    )
-    with open(yaml_path, "w", encoding="utf-8") as f:
-        f.write(yaml_content)
 
     # ================= Audit (ID consistency) =================
     allowed_ids = set(CLASS_NAMES.keys())
@@ -308,10 +294,7 @@ def main():
     print(f"Train set: {len(train_list)} images")
     print(f"Val set:   {len(val_list)} images")
     print(f"Test set:  {len(test_list)} images")
-    print(f"YAML saved to: {yaml_path}")
-    print("==============================")
-    print(
-        f"You can now train YOLOv11 with:\n  yolo detect train data={yaml_path} model=yolov11n.pt epochs=50 imgsz=640 batch=16")
+    # yolo detect train data={yaml_path} model=yolov11n.pt epochs=50 imgsz=640 batch=16")
 
 
 if __name__ == "__main__":
