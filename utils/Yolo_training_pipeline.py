@@ -22,7 +22,7 @@ Model = "yolo11n.pt"
 # each run do not forget to change these runs
 train_run = "runs/GMOT_only_1/train"  # change in each train val runs
 val_run = "runs/GMOT_only_1/val"  # so change these according to table
-runName = "gmot_train"       #  1 is for inital without hyper parameter tuning much
+runName = "gmot_train_full_finetune"       #  1 is for inital without hyper parameter tuning much
 eval_results_path = "YOLO_training_results/eval_GMOT_ONLY_results_1.json"  # change in each evaluation
 batchSize = 32
 number_of_epochs = 50
