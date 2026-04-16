@@ -4,17 +4,12 @@ path: .
 train:
   - datasets/gmot_yolo/train/images
   - datasets/bridge_yolo/avenue/train/images
-  # add more datasets here
+  - datasets/bridge_yolo/avenue/val/images # since this is silver labled data we will use it only for training
 val:
   - datasets/gmot_yolo/val/images
-  - datasets/bridge_yolo/avenue/val/images
-  # add more datasets here, e.g.:
-  # - datasets/avenue_bridge/val/images
-  # - datasets/XYZ_bridge/val/images
 test:
     - datasets/gmot_yolo/test/images
-    # I need to add the dataset that I will label here with CVAT
-    -
+
 # unified class set (add 'bridge' at index 10)
 nc: 10
 names:

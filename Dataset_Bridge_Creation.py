@@ -154,7 +154,7 @@ def process_split(model: YOLO, split: str):
     coco_names = model.names
     count_imgs = 0
     for batch_paths in chunked(pending, PENDING_CHUNK):
-        # IMPORTANT: use stream=False here to let Ultralytics close files per batch more promptly
+        # I need to use stream=False here to let Ultralytics close files per batch more promptly
         results = model.predict(
             source=batch_paths,
             conf=CONF,

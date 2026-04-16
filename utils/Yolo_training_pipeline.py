@@ -81,15 +81,14 @@ def train():
 def validate(best_weights_path):
     model = YOLO(best_weights_path)
     _ = model.predict(
-        source="C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\gmot_yolo\train\images\airplane-3_000000.jpg",
+        source=r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\gmot_yolo\train\images\airplane-3_000000.jpg",
         device=Device, verbose=False)
     start_time = time.time()
     results = model.val(
         data=yamlPath,
         split="val",
-        epochs=number_of_epochs,
         imgsz=640,
-        batchsz=batchSize,
+        batch=batchSize,
         device=Device,
         project=val_run,
         name=runName,
