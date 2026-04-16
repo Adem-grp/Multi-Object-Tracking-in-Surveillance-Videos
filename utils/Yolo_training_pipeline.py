@@ -1,23 +1,37 @@
 from ultralytics import YOLO
 import torch
+import time
+import os
+import json
+
+"""
+Model         #Training Data      Research Question 
+1 (Baseline)  GMOT-40 Only        How does standard YOLO handle generic objects?
+2             GMOT + Avenue       Does adding campus-style surveillance improve pedestrian/person detection?
+3             GMOT + UCSD         Does adding low-resolution/overhead footage help with scale invariance?
+4             GMOT + ShanghaiTech Does massive urban data help with crowded scene detection?
+5             All Combined        Is there a "Limit" to how much data improves a pruned model?
+
+
+"""
+
 
 Device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 yamlPath = "gmot.yaml"
 Model = "yolo11n.pt"
 # each run do not forget to change these runs
-train_run = "runs/run_1/train"
-val_run = "runs/run_1/val"
-number_of_epochs = 10
-runName = "gmot_train_v1"  # Do not forget to change this each run tho
+train_run = "runs/GMOT_only_1/train"  # change in each train val runs
+val_run = "runs/GMOT_only_1/val"  # so change these according to table
+runName = "gmot_train"       #  1 is for inital without hyper parameter tuning much
+eval_results_path = "YOLO_training_results/eval_GMOT_ONLY_results_1.json"  # change in each evaluation
 batchSize = 32
-number_of_epochs = 30
+number_of_epochs = 50
 
 
 def train():
     model = YOLO(Model)
     results = model.train(
         data=yamlPath,
-        split="train",
         epochs=number_of_epochs,
         imgsz=640,
         batchsz=batchSize,
@@ -60,22 +74,16 @@ def train():
         # 0.0 disables class weighting, 1.0 applies full inverse frequency weighting. Values between 0 and 1 provide partial weighting.
         # there are a few more but first deal with the ones above
 
-
-
-
-
-
-
-
-
-
-
     )
     return results
 
 
 def validate(best_weights_path):
     model = YOLO(best_weights_path)
+    _ = model.predict(
+        source="C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\gmot_yolo\train\images\airplane-3_000000.jpg",
+        device=Device, verbose=False)
+    start_time = time.time()
     results = model.val(
         data=yamlPath,
         split="val",
@@ -87,8 +95,37 @@ def validate(best_weights_path):
         name=runName,
         seed=42,
     )
+    total_tm = time.time() - start_time
+    # average inference time in ms pre-process+Inference+Post-process
+    avg_inference_ms = results.speed['inference']
+    fps = 1000 / avg_inference_ms if avg_inference_ms > 0 else 0
+    peak_vram = torch.cuda.max_memory_allocated() / (1024 ** 2) if Device == "cuda" else 0
+    metrics = {
+        "model_file": best_weights_path,
+        "accuracy_metrics": {
+            "precision": round(results.results_dict['metrics/precision(B)'], 4),
+            "recall": round(results.results_dict['metrics/recall(B)'], 4),
+            "mAP50": round(results.results_dict['metrics/mAP50(B)'], 4),
+            "mAP50-95": round(results.results_dict['metrics/mAP50-95(B)'], 4)
+        },
+        "real_time_metrics": {
+            "avg_latency_ms": round(avg_inference_ms, 2),
+            "estimated_fps": round(fps, 1),
+            "peak_vram_usage_mb": round(peak_vram, 2)
+        },
+        "hardware_context": {
+            "device": torch.cuda.get_device_name(0) if Device == "cuda" else "CPU",
+            "vram_total_gb": 8 if "4070" in torch.cuda.get_device_name(0) else "Unknown"
+        }
+    }
+    with open(eval_results_path, 'w') as f:
+        json.dump(metrics, f, indent=4)
 
-    if __name__ == "__main__":
-        results = train()
-        best_weights = f"{train_run}/{runName}/weights/best.pt"
-        validate(best_weights_path=best_weights)
+    print(f"--- Benchmark Complete: {best_weights_path} ---")
+    print(f"FPS: {metrics['real_time_metrics']['estimated_fps']} | mAP50: {metrics['accuracy_metrics']['mAP50']}")
+
+
+if __name__ == "__main__":
+    results = train()
+    best_weights = f"{train_run}/{runName}/weights/best.pt"
+    validate(best_weights_path=best_weights)

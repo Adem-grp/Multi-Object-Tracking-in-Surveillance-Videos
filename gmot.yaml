@@ -28,7 +28,6 @@ names:
   7: insect
   8: stock
   9: car
-  10: bridge
 # not last layer only hyper parameter tuning evaluation
 # which pretrained models has the better result yolov8s
 # whicch is the best  can they be optimized ways of optimizing the trackers
@@ -38,3 +37,4 @@ names:
 # comparative evaluation of trying multiple methods or tuning the methods and compararison between them to see which is better
 # processing speed
 # expolarition of methods
+
