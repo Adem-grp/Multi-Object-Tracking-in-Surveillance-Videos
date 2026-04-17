@@ -15,14 +15,13 @@ Model         #Training Data      Research Question
 
 """
 
-
 Device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 yamlPath = "gmot.yaml"
 Model = "yolo11n.pt"
 # each run do not forget to change these runs
 train_run = "runs/GMOT_only_1/train"  # change in each train val runs
 val_run = "runs/GMOT_only_1/val"  # so change these according to table
-runName = "full_finetune"       #  1 is for inital without hyper parameter tuning much
+runName = "full_finetune"  #  1 is for inital without hyperparameter tuning much
 eval_results_path = "YOLO_training_results/eval_GMOT_ONLY_results_1.json"  # change in each evaluation
 batchSize = 32
 number_of_epochs = 50
