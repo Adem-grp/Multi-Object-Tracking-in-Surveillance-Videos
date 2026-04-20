@@ -41,7 +41,7 @@ SOURCE_DATASET = "shanghaitech"
 SRC_ROOT = Path(r"C:/Users/USER/PycharmProjects/Multi-Object-Tracking-in-Surveillance-Videos"
                 rf"/datasets/{SOURCE_DATASET}_yolo")
 DST_ROOT = Path(r"C:/Users/USER/PycharmProjects/Multi-Object-Tracking-in-Surveillance-Videos"
-                rF"/datasets/bridge_yolo/{SOURCE_DATASET}")
+                rf"/datasets/bridge_yolo/{SOURCE_DATASET}")
 
 MODEL = "yolo11n.pt"  # COCO-pretrained weights
 CONF = 0.5  # below this treshold is discarded for  higher precision, above for higher recall
@@ -167,11 +167,8 @@ def process_split(model: YOLO, split: str):
             save=False,
             workers=0,  # fewer background workers -> fewer open handles on Windows
         )
-        for r in results:
-            img_path_str = getattr(r, "path", None)
-            if not img_path_str:
-                continue
-            src_img = Path(img_path_str)
+        for r, original_path in zip(results, batch_paths):
+            src_img = Path(original_path).resolve()
             if not src_img.exists():
                 continue
 
@@ -237,6 +234,9 @@ def process_split(model: YOLO, split: str):
 
 # ===================== RUN =====================
 def main():
+    print(repr(SRC_ROOT))
+    print(SRC_ROOT.exists())
+
     print(f"{SOURCE_DATASET} is being bridged")
     print(f"Source root: {SRC_ROOT}")
     print(f"Output root: {DST_ROOT}")
