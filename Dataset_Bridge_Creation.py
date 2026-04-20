@@ -35,7 +35,7 @@ from typing import Dict, List, Iterable
 from ultralytics import YOLO
 
 # Source dataset is used to specify the dataset being bridged of course name of the output folder needs to be used
-SOURCE_DATASET = "avenue"
+SOURCE_DATASET = "ucsd"
 
 # ===================== CONFIG  =====================
 SRC_ROOT = Path(r"C:/Users/USER/PycharmProjects/Multi-Object-Tracking-in-Surveillance-Videos"
