@@ -46,7 +46,6 @@ def train():
         optimizer='auto',
         seed=42,
 
-
     )
     return results
 
@@ -113,13 +112,10 @@ def tune():
     print("Use best_hyperparameters.yaml in your training runs.")
 
 
-
-
-
-
 if __name__ == "__main__":
     print("Cuda available: ", torch.cuda.is_available())
-    tune()
+    print("Cuda version: ", torch.cuda.get_device_name(0))
+    #tune()
     #results = train()
     #best_weights = f"{train_run}/{runName}/weights/best.pt"
     #validate(best_weights_path=best_weights)
