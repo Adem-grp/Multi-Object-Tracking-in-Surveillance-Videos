@@ -116,6 +116,7 @@ def tune():
         project=tune_run,
         device=DEVICE,
         name="tune_baseline",
+        # resume = True
     )
     print(f"Tuning complete. Best hyperparameters saved to {tune_run}/tune_baseline/")
     print("Use best_hyperparameters.yaml in your training runs.")
