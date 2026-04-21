@@ -107,8 +107,8 @@ def tune():
     model = YOLO("yolo11n.pt")
     model.tune(
         data=str(Path(yamlPath).resolve()),
-        epochs=50,
-        patience=8,
+        epochs=100,
+        patience=20,
         iterations=20,
         optimizer="auto",
         plots=True,
