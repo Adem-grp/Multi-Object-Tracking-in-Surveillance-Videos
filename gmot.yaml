@@ -1,6 +1,6 @@
 # gmot is already defined so no need for a bridge there
 
-path: .
+path: D:\  # lab pc specific path so pu `.` for own pc
 train:
   - datasets/gmot_yolo/train/images
   #- datasets/bridge_yolo/avenue/train/images

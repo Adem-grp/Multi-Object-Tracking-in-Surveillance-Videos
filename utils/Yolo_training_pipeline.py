@@ -3,7 +3,11 @@ import torch
 import time
 import os
 import json
+from pathlib import Path
 
+# yaml specific to lab pc change it for laptop it was related to yolo guessing yaml was in utils so
+yamlPath = r"C:\Users\k2549603\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\gmot.yaml"
+DEVICE=0
 """
 Model         #Training Data      Research Question 
 1 (Baseline)  GMOT-40 Only        How does standard YOLO handle generic objects?
@@ -15,8 +19,7 @@ Model         #Training Data      Research Question
 
 """
 
-Device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-yamlPath = "gmot.yaml"
+
 Model = "yolo11n.pt"
 # each run do not forget to change these runs
 train_run = "runs/GMOT_only_1/train"  # change in each train val runs
@@ -34,8 +37,8 @@ def train():
         data=yamlPath,
         epochs=number_of_epochs,
         imgsz=640,
-        batchsz=batchSize,
-        device=Device,
+        batch=batchSize,
+        device=DEVICE,
         project=train_run,  # each run do not forget to change these runs
         name=runName,
         patience=4,
@@ -54,14 +57,15 @@ def validate(best_weights_path):
     model = YOLO(best_weights_path)
     _ = model.predict(
         source=r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\gmot_yolo\train\images\airplane-3_000000.jpg",
-        device=Device, verbose=False)
+        device=DEVICE,
+        verbose=False)
     start_time = time.time()
     results = model.val(
         data=yamlPath,
         split="val",
         imgsz=640,
         batch=batchSize,
-        device=Device,
+        device=DEVICE,
         project=val_run,
         name=runName,
         seed=42,
@@ -70,7 +74,10 @@ def validate(best_weights_path):
     # average inference time in ms pre-process+Inference+Post-process
     avg_inference_ms = results.speed['inference']
     fps = 1000 / avg_inference_ms if avg_inference_ms > 0 else 0
-    peak_vram = torch.cuda.max_memory_allocated() / (1024 ** 2) if Device == "cuda" else 0
+    if torch.cuda.is_available():
+        peak_vram = torch.cuda.max_memory_allocated() / (1024 ** 2)
+    else:
+        peak_vram = 0
     metrics = {
         "model_file": best_weights_path,
         "accuracy_metrics": {
@@ -85,7 +92,7 @@ def validate(best_weights_path):
             "peak_vram_usage_mb": round(peak_vram, 2)
         },
         "hardware_context": {
-            "device": torch.cuda.get_device_name(0) if Device == "cuda" else "CPU",
+            "device": torch.cuda.get_device_name(0) if DEVICE == 0 else "CPU",
             "vram_total_gb": 8 if "4070" in torch.cuda.get_device_name(0) else "Unknown"
         }
     }
@@ -99,13 +106,15 @@ def validate(best_weights_path):
 def tune():
     model = YOLO("yolo11n.pt")
     model.tune(
-        data=yamlPath,
-        epochs=30,
-        iterations=100,
+        data=str(Path(yamlPath).resolve()),
+        epochs=50,
+        patience=8,
+        iterations=20,
         optimizer="auto",
         plots=True,
         save=True,
         project=tune_run,
+        device=DEVICE,
         name="tune_baseline",
     )
     print(f"Tuning complete. Best hyperparameters saved to {tune_run}/tune_baseline/")
@@ -114,8 +123,12 @@ def tune():
 
 if __name__ == "__main__":
     print("Cuda available: ", torch.cuda.is_available())
-    print("Cuda version: ", torch.cuda.get_device_name(0))
-    #tune()
+    print("Cuda available: ", torch.cuda.is_available())
+
+    if torch.cuda.is_available():
+        print("Cuda device: ", torch.cuda.get_device_name(0))
+    print("FINAL YAML PATH:", Path(yamlPath).resolve())
+    tune()
     #results = train()
     #best_weights = f"{train_run}/{runName}/weights/best.pt"
     #validate(best_weights_path=best_weights)
