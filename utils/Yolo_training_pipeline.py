@@ -6,15 +6,13 @@ import json
 from pathlib import Path
 import os
 import ray
+
 # Lock CUDA to a single GPU BEFORE torch is imported
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-
 
 # yaml specific to lab pc change it for laptop it was related to yolo guessing yaml was in utils so
 yamlPath = r"C:\Users\k2549603\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\gmot.yaml"
 DEVICE = 0
-
-
 
 """
 Model         #Training Data      Research Question 
@@ -33,7 +31,7 @@ train_run = "runs/GMOT_only_1/train"  # change in each train val runs
 val_run = "runs/GMOT_only_1/val"  # so change these according to table
 runName = "full_finetune"  #  1 is for inital without hyperparameter tuning much
 eval_results_path = "YOLO_training_results/eval_GMOT_ONLY_results_1.json"  # change in each evaluation
-batchSize = 16 # for tuning change later
+batchSize = 16  # for tuning change later
 number_of_epochs = 50
 tune_run = "runs/GMOT_only_1/tune"
 
@@ -116,21 +114,19 @@ def tune():
     model.tune(
         data=str(Path(yamlPath).resolve()),
         epochs=100,
-        patience=10,
         iterations=100,
         optimizer="auto",
         batch=batchSize,
         plots=True,
         save=True,
         project=tune_run,
-        name="tune_ray_main_100",
+        name="tune_ray_main_no_patience",  # train yolo11m as well for 20 iterations to see the difference
         device=DEVICE,
         use_ray=True,
         resume=True,
-        space={}, # REQUIRED to avoid NoneType crash
+        space={},  # REQUIRED to avoid NoneType crash
         exist_ok=True
     )
-
 
 
 if __name__ == "__main__":
