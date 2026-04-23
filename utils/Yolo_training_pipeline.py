@@ -4,10 +4,18 @@ import time
 import os
 import json
 from pathlib import Path
+import os
+import ray
+# Lock CUDA to a single GPU BEFORE torch is imported
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+
 
 # yaml specific to lab pc change it for laptop it was related to yolo guessing yaml was in utils so
 yamlPath = r"C:\Users\k2549603\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\gmot.yaml"
-DEVICE=0
+DEVICE = 0
+
+
+
 """
 Model         #Training Data      Research Question 
 1 (Baseline)  GMOT-40 Only        How does standard YOLO handle generic objects?
@@ -19,14 +27,13 @@ Model         #Training Data      Research Question
 
 """
 
-
 Model = "yolo11n.pt"
 # each run do not forget to change these runs
 train_run = "runs/GMOT_only_1/train"  # change in each train val runs
 val_run = "runs/GMOT_only_1/val"  # so change these according to table
 runName = "full_finetune"  #  1 is for inital without hyperparameter tuning much
 eval_results_path = "YOLO_training_results/eval_GMOT_ONLY_results_1.json"  # change in each evaluation
-batchSize = 32
+batchSize = 16 # for tuning change later
 number_of_epochs = 50
 tune_run = "runs/GMOT_only_1/tune"
 
@@ -105,29 +112,41 @@ def validate(best_weights_path):
 
 def tune():
     model = YOLO("yolo11n.pt")
+
     model.tune(
         data=str(Path(yamlPath).resolve()),
         epochs=100,
-        patience=20,
-        iterations=20,
+        patience=10,
+        iterations=10,
         optimizer="auto",
+        batch=batchSize,
         plots=True,
         save=True,
         project=tune_run,
+        name="tune_ray_main",
         device=DEVICE,
-        name="tune_baseline",
-        # resume = True
+        use_ray=True,
+        resume=True,
+        space={}, # REQUIRED to avoid NoneType crash
+        exist_ok=True
     )
-    print(f"Tuning complete. Best hyperparameters saved to {tune_run}/tune_baseline/")
-    print("Use best_hyperparameters.yaml in your training runs.")
+
 
 
 if __name__ == "__main__":
-    print("Cuda available: ", torch.cuda.is_available())
-    print("Cuda available: ", torch.cuda.is_available())
+    print("Cuda available:", torch.cuda.is_available())
+
+    # Ray resource cap (very important for stability)
+    ray.init(
+        num_cpus=8,
+        num_gpus=1,
+        include_dashboard=False,
+        ignore_reinit_error=True
+    )
 
     if torch.cuda.is_available():
-        print("Cuda device: ", torch.cuda.get_device_name(0))
+        print("Cuda device:", torch.cuda.get_device_name(0))
+
     print("FINAL YAML PATH:", Path(yamlPath).resolve())
     tune()
     #results = train()
