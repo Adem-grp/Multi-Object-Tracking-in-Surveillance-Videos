@@ -20,18 +20,16 @@ Model         #Training Data      Research Question
 2             GMOT + Avenue       Does adding campus-style surveillance improve pedestrian/person detection?
 3             GMOT + UCSD         Does adding low-resolution/overhead footage help with scale invariance?
 4             GMOT + ShanghaiTech Does massive urban data help with crowded scene detection?
-5             All Combined        Is there a "Limit" to how much data improves a pruned model?
-
+5             All Combined        Does more diverse data lead to better generalization across all object types and scenes?
 
 """
 
 Model = "yolo11n.pt"
 # each run do not forget to change these runs
 train_run = "runs/GMOT_only_1/train"  # change in each train val runs
-val_run = "runs/GMOT_only_1/val"  # so change these according to table
 runName = "full_finetune"  #  1 is for inital without hyperparameter tuning much
-eval_results_path = "YOLO_training_results/eval_GMOT_ONLY_results_1.json"  # change in each evaluation
-batchSize = 16  # for tuning change later
+eval_results_path = "YOLO_inference_evaluations/eval_results_YOLOm.json"  # change in each evaluation
+batchSize = 32  # for tuning change later
 number_of_epochs = 50
 tune_run = "runs/GMOT_only_1/tune"
 
@@ -78,13 +76,13 @@ def validate(best_weights_path):
                     imgsz=640,
                     conf=conf,
                     iou=iou,
+                    max_det=det,
                     batch=batchSize,
-                    max_det= det,
                     device=DEVICE,
-                    project=val_run,
-                    name=runName,
                     seed=42,
                     agnostic_nms=True,
+                    save=False,
+                    plots=False,
                 )
                 total_tm = time.time() - start_time
                 # average inference time in ms pre-process+Inference+Post-process
@@ -95,11 +93,11 @@ def validate(best_weights_path):
                 else:
                     peak_vram = 0
                 metrics = {
-                    "model_file": best_weights_path,
+                    "model": "YOLO11m",
                     "conf": conf,
                     "iou": iou,
                     "max_det": det,
-                    "accuracy_metrics": {
+                    "detection_metrics": {
                         "precision": round(results.results_dict['metrics/precision(B)'], 4),
                         "recall": round(results.results_dict['metrics/recall(B)'], 4),
                         "mAP50": round(results.results_dict['metrics/mAP50(B)'], 4),
@@ -107,7 +105,7 @@ def validate(best_weights_path):
                     },
                     "real_time_metrics": {
                         "avg_latency_ms": round(avg_inference_ms, 2),
-                        "estimated_fps": round(fps, 1),
+                        "estimated_fps_gpu_only": round(fps, 1),
                         "peak_vram_usage_mb": round(peak_vram, 2)
                     },
                     "total_validation_time_sec": round(total_tm, 2)
@@ -117,7 +115,7 @@ def validate(best_weights_path):
 
                 print(f"--- Benchmark Complete: {best_weights_path} ---")
                 print(
-                    f"FPS: {metrics['real_time_metrics']['estimated_fps']} | mAP50: {metrics['accuracy_metrics']['mAP50']}")
+                    f"GPU_only FPS: {metrics['real_time_metrics']['estimated_fps_gpu_only']} | mAP50: {metrics['detection_metrics']['mAP50']} | mAP50-95: {metrics['detection_metrics']['mAP50-95']} | Conf: {conf} | IoU: {iou} | Max Det: {det} | Time: {metrics['total_validation_time_sec']}s | VRAM: {metrics['real_time_metrics']['peak_vram_usage_mb']}MB")
 
 
 def tune():
@@ -160,4 +158,4 @@ if __name__ == "__main__":
     #tune()
     #results = train()
     best_weights = r"C:\Users\K2549603\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\runs\detect\runs\GMOT_only_1\tune\tune_ray_main_yolo11m\weights\best.pt"
-    #validate(best_weights_path=best_weights)
+    validate(best_weights_path=best_weights)
