@@ -1,0 +1,5 @@
+First 40 iterations of hyperparameter tuning for Yolov11n resulted in having the same results for 40 iterations despite
+the changes in the hyperparamters. Early stopping was implemented. Therefore, all trials ended at epoch 13 and the best
+epoch was always the first one.
+Then to check if there was a problem with convergence early stopping was lifted and 3 trials run with 50 epochs
+As a result, no important improvements were detected.
