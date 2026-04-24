@@ -3,3 +3,7 @@ the changes in the hyperparamters. Early stopping was implemented. Therefore, al
 epoch was always the first one.
 Then to check if there was a problem with convergence early stopping was lifted and 3 trials run with 50 epochs
 As a result, no important improvements were detected.
+
+YOLO11m was decided to be used since it is more powerful and also were able to run more epochs with early stopping.
+Next Experiments will be done with YOLO11m. I will check conf iou and max_det variables to observe their
+affect on the result metrics and identify the best values for them.
