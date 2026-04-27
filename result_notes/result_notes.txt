@@ -7,3 +7,10 @@ As a result, no important improvements were detected.
 YOLO11m was decided to be used since it is more powerful and also were able to run more epochs with early stopping.
 Next Experiments will be done with YOLO11m. I will check conf iou and max_det variables to observe their
 affect on the result metrics and identify the best values for them.
+
+
+
+A low confidence threshold was selected to maximise recall at the detector stage,
+ as downstream tracking algorithms can suppress false positives but cannot recover missed detections.
+ Empirical grid‑search evaluation showed that YOLOv11m achieves its highest recall–precision trade‑off
+ at lower confidence thresholds on the GMOT dataset.

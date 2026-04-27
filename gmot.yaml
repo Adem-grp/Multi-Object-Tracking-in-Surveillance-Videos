@@ -3,12 +3,12 @@
 path: D:\  # lab pc specific path so pu `.` for own pc
 train:
   - datasets/gmot_yolo/train/images
-  #- datasets/bridge_yolo/avenue/train/images
-  #- datasets/bridge_yolo/avenue/val/images # since this is silver labled data we will use it only for training
+  - datasets/bridge_yolo/avenue/train/images
 val:
   - datasets/gmot_yolo/val/images
+  # - datasets/bridge_yolo/avenue/val/images # since this is silver labled data we will use it only for training
 test:
-    - datasets/gmot_yolo/test/images
+  - datasets/gmot_yolo/test/images
 
 # unified class set (add 'bridge' at index 10)
 nc: 10
