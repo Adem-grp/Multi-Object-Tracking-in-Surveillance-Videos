@@ -4,9 +4,9 @@ path: D:\  # lab pc specific path so pu `.` for own pc
 train:
   - datasets/gmot_yolo/train/images
   - datasets/bridge_yolo/shanghaitech/train/images
-  #- datasets/bridge_yolo/ucsd/train/images
-  #- datasets/bridge_yolo/avenue/train/images
-  #- datasets/bridge_yolo/avenue/val/images # add when you do all datasets
+  - datasets/bridge_yolo/ucsd/train/images
+  - datasets/bridge_yolo/avenue/train/images
+  - datasets/bridge_yolo/avenue/val/images # add when you do all datasets
 val:
   - datasets/gmot_yolo/val/images
 test:

@@ -26,8 +26,8 @@ Model         #Training Data      Research Question
 
 
 # each run do not forget to change these runs
-train_run = "runs/GMOT+ShanghaiTech/train"  # change in each train val runs
-runName = "full_finetune(GMOT+ShanghaiTech)"  #  1 is for inital without hyperparameter tuning much
+train_run = "runs/All_Datasets/train"  # change in each train val runs
+runName = "full_finetune(All_Datasets)"  #  1 is for inital without hyperparameter tuning much
 eval_results_path = r"C:\Users\K2549603\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\YOLO_inference_evaluations\eval_results_dataset_combinations.json"
 # change in each evaluation
 batchSize = 16  # for tuning change later
@@ -201,7 +201,6 @@ if __name__ == "__main__":
     print("JSON absolute path:", os.path.abspath(eval_results_path))
 
     print("Cuda available:", torch.cuda.is_available())
-
     # Ray resource cap (very important for stability)
     """ ray.init(
         num_cpus=8,
@@ -216,8 +215,8 @@ if __name__ == "__main__":
     print("FINAL YAML PATH:", Path(yamlPath).resolve())
     #tune()
     #results = train()
-    best_weights = r"C:\Users\K2549603\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\runs\detect\runs\GMOT+ShanghaiTech\train\full_finetune(GMOT+ShanghaiTech)\weights\best.pt"
-    #best_weights = r"C:\Users\K2549603\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\runs\detect\runs\GMOT_only_1\tune\tune_ray_main_yolo11m\weights\best.pt"
+    #best_weights = r"C:\Users\K2549603\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\runs\detect\runs\GMOT+ShanghaiTech\train\full_finetune(GMOT+ShanghaiTech)\weights\best.pt"
+    best_weights = r"C:\Users\K2549603\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\runs\detect\runs\GMOT_only_1\tune\tune_ray_main_yolo11m\weights\best.pt"
     #validate(best_weights_path=best_weights)
-    validate_best(best_weights_path=best_weights)
-    #train(best_weights)
+    #validate_best(best_weights_path=best_weights)
+    train(best_weights)
