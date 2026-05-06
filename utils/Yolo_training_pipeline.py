@@ -45,9 +45,10 @@ def train(best_weights_path):
         device=DEVICE,
         project=train_run,  # each run do not forget to change these runs
         name=runName,
-        patience=30,
+        patience=3,
         optimizer='auto',
         seed=42,
+        resume=True
 
     )
 
@@ -83,7 +84,7 @@ def validate_best(best_weights_path):
     else:
         peak_vram = 0
     metrics = {
-        "model": "GMOT+ShanghaiTech",
+        "model": "All Datasets",
         "conf": 0.05,
         "iou": 0.6,
         "max_det": 500,
@@ -216,7 +217,7 @@ if __name__ == "__main__":
     #tune()
     #results = train()
     #best_weights = r"C:\Users\K2549603\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\runs\detect\runs\GMOT+ShanghaiTech\train\full_finetune(GMOT+ShanghaiTech)\weights\best.pt"
-    best_weights = r"C:\Users\K2549603\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\runs\detect\runs\GMOT_only_1\tune\tune_ray_main_yolo11m\weights\best.pt"
+    best_weights = r"C:\Users\k2549603\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\runs\detect\runs\All_Datasets\train\full_finetune(All_Datasets)\weights\best.pt"
     #validate(best_weights_path=best_weights)
-    #validate_best(best_weights_path=best_weights)
-    train(best_weights)
+    validate_best(best_weights_path=best_weights)
+    #train(best_weights)
