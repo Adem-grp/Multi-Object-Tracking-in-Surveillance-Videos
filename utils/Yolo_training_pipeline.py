@@ -24,15 +24,14 @@ Model         #Training Data      Research Question
 
 """
 
-
 # each run do not forget to change these runs
-train_run = "runs/All_Datasets/train"  # change in each train val runs
-runName = "full_finetune(All_Datasets)"  #  1 is for inital without hyperparameter tuning much
+train_run = "runs/detect/GMOT_only/train"  # change in each train val runs
+runName = "full_finetune(GMOT_only)"  #  1 is for inital without hyperparameter tuning much
 eval_results_path = r"C:\Users\K2549603\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\YOLO_inference_evaluations\eval_results_dataset_combinations.json"
 # change in each evaluation
 batchSize = 16  # for tuning change later
 number_of_epochs = 100
-tune_run = "runs/GMOT_only_1/tune"
+tune_run = "runs/GMOT_only/tune"
 
 
 def train(best_weights_path):
@@ -51,6 +50,7 @@ def train(best_weights_path):
         resume=True
 
     )
+
 
 def validate_best(best_weights_path):
     model = YOLO(best_weights_path)
@@ -112,67 +112,70 @@ def validate_best(best_weights_path):
         f" Conf: {0.05} | IoU: {0.6} | Max Det: {500} | Time: {metrics['total_validation_time_sec']}s | "
         f"VRAM: {metrics['real_time_metrics']['peak_vram_usage_mb']}MB")
 
+
 def validate(best_weights_path):
     model = YOLO(best_weights_path)
-    confs = [0.05,0.1,0.2,0.3,0.4,0.5,0.6,0.7]
-    ious = [0.3,0.4,0.5,0.6,0.7,0.8,0.9]
-    dets = [300,500,750,1000]
-
+    confs = [0.01, 0.03, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
+    ious = [0.3, 0.4, 0.45, 0.5, 0.55, 0.6, 0.7, 0.8, 0.9]
+    dets = [100, 200, 300, 500, 750]
+    agnostic = [True, False]
     _ = model.predict(
         source=r"D:\datasets\gmot_yolo\val\images\airplane-0_000037.jpg",
         device=DEVICE,
         verbose=False)
-    for conf in confs:
-        for iou in ious:
-            for det in dets:
-                start_time = time.time()
-                results = model.val(
-                    data=yamlPath,
-                    split="val",
-                    imgsz=640,
-                    conf=conf,
-                    iou=iou,
-                    max_det=det,
-                    batch=batchSize,
-                    device=DEVICE,
-                    seed=42,
-                    agnostic_nms=True,
-                    save=False,
-                    plots=False,
-                )
-                total_tm = time.time() - start_time
-                # average inference time in ms pre-process+Inference+Post-process
-                avg_inference_ms = results.speed['inference']
-                fps = 1000 / avg_inference_ms if avg_inference_ms > 0 else 0
-                if torch.cuda.is_available():
-                    peak_vram = torch.cuda.max_memory_allocated() / (1024 ** 2)
-                else:
-                    peak_vram = 0
-                metrics = {
-                    "model": "YOLO11m",
-                    "conf": conf,
-                    "iou": iou,
-                    "max_det": det,
-                    "detection_metrics": {
-                        "precision": round(results.results_dict['metrics/precision(B)'], 4),
-                        "recall": round(results.results_dict['metrics/recall(B)'], 4),
-                        "mAP50": round(results.results_dict['metrics/mAP50(B)'], 4),
-                        "mAP50-95": round(results.results_dict['metrics/mAP50-95(B)'], 4)
-                    },
-                    "real_time_metrics": {
-                        "avg_latency_ms": round(avg_inference_ms, 2),
-                        "estimated_fps_gpu_only": round(fps, 1),
-                        "peak_vram_usage_mb": round(peak_vram, 2)
-                    },
-                    "total_validation_time_sec": round(total_tm, 2)
-                }
-                os.makedirs(os.path.dirname(eval_results_path), exist_ok=True)
-                with open(eval_results_path, "a") as f:
-                    f.write(json.dumps(metrics) + "\n")
+    for agno in agnostic:
+        for conf in confs:
+            for iou in ious:
+                for det in dets:
+                    start_time = time.time()
+                    results = model.val(
+                        data=yamlPath,
+                        split="val",
+                        imgsz=640,
+                        conf=conf,
+                        iou=iou,
+                        max_det=det,
+                        agnostic_nms=agno,
+                        batch=batchSize,
+                        device=DEVICE,
+                        seed=42,
+                        save=False,
+                        plots=False,
+                    )
+                    total_tm = time.time() - start_time
+                    # average inference time in ms pre-process+Inference+Post-process
+                    avg_inference_ms = results.speed['inference']
+                    fps = 1000 / avg_inference_ms if avg_inference_ms > 0 else 0
+                    if torch.cuda.is_available():
+                        peak_vram = torch.cuda.max_memory_allocated() / (1024 ** 2)
+                    else:
+                        peak_vram = 0
+                    metrics = {
+                        "model": "YOLO11m",
+                        "conf": conf,
+                        "iou": iou,
+                        "max_det": det,
+                        "agnostic_nms": agno,
+                        "detection_metrics": {
+                            "precision": round(results.results_dict['metrics/precision(B)'], 4),
+                            "recall": round(results.results_dict['metrics/recall(B)'], 4),
+                            "mAP50": round(results.results_dict['metrics/mAP50(B)'], 4),
+                            "mAP50-95": round(results.results_dict['metrics/mAP50-95(B)'], 4)
+                        },
+                        "real_time_metrics": {
+                            "avg_latency_ms": round(avg_inference_ms, 2),
+                            "estimated_fps_gpu_only": round(fps, 1),
+                            "peak_vram_usage_mb": round(peak_vram, 2)
+                        },
+                        "total_validation_time_sec": round(total_tm, 2)
+                    }
+                    os.makedirs(os.path.dirname(eval_results_path), exist_ok=True)
+                    with open(eval_results_path, "a") as f:
+                        f.write(json.dumps(metrics) + "\n")
 
-                print(f"--- Benchmark Complete: {best_weights_path} ---")
-                print(
-                    f"GPU_only FPS: {metrics['real_time_metrics']['estimated_fps_gpu_only']} | mAP50: {metrics['detection_metrics']['mAP50']} | mAP50-95: {metrics['detection_metrics']['mAP50-95']} | Conf: {conf} | IoU: {iou} | Max Det: {det} | Time: {metrics['total_validation_time_sec']}s | VRAM: {metrics['real_time_metrics']['peak_vram_usage_mb']}MB")
+                    print(f"--- Benchmark Complete: {best_weights_path} ---")
+                    print(
+                        f"GPU_only FPS: {metrics['real_time_metrics']['estimated_fps_gpu_only']} | mAP50: {metrics['detection_metrics']['mAP50']} | mAP50-95: {metrics['detection_metrics']['mAP50-95']} | Conf: {conf} | IoU: {iou} | Max Det: {det} | Time: {metrics['total_validation_time_sec']}s | VRAM: {metrics['real_time_metrics']['peak_vram_usage_mb']}MB")
 
 
 def tune():
