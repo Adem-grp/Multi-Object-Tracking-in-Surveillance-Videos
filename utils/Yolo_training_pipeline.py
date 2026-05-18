@@ -12,13 +12,13 @@ Best_LR0 = 0.002038823487169829
 Best_MOMENTUM = 0.731639442196722
 Best_WEIGHT_DECAY = 1.4718411535261374e-05
 
-yamlPath = r"C:\Users\k2549603\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\gmot.yaml"
+yamlPath = r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\gmot.yaml"
 DEVICE = 0
 
 train_run = r"C:\Users\k2549603\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\runs\detect"
 runName = "all_datasets"
 
-eval_results_path = r"C:\Users\k2549603\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\YOLO_inference_evaluations\evaluation_results_dataset_combinations_final.json"
+eval_results_path = r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\YOLO_inference_evaluations\evaluation_results_dataset_combinations_final.json"
 
 batchSize = 16
 number_of_epochs = 50
@@ -49,7 +49,7 @@ def measure_fps(model,images_dir,max_frames=150):
 
     # warm up
     first_img = os.path.join(images_dir,imageFiles[0])
-    _ = model.predict(
+    res = model.predict(
         source=first_img,
         conf=0.01,
         iou=0.6,
@@ -58,6 +58,7 @@ def measure_fps(model,images_dir,max_frames=150):
         device=DEVICE,
         verbose=False
     )
+    print("Boxes: ",len(res[0].boxes))
     frameCount = 0
     start_time = time.time()
     for img in imageFiles:
@@ -69,6 +70,7 @@ def measure_fps(model,images_dir,max_frames=150):
             max_det=500,
             agnostic_nms=False,
             device=DEVICE,
+            seed=42,
             verbose=False
         )
         frameCount += 1
@@ -106,12 +108,12 @@ def validate_best(best_weights_path):
 
     total_tm = time.time() - start_time
     avg_inference_ms = results.speed["inference"]
-    fps = measure_fps(model,images_dir=r"D:\datasets\gmot_yolo\val\images", max_frames=150)
+    fps = measure_fps(model,images_dir=r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\gmot_yolo\val\images", max_frames=150)
 
     peak_vram = torch.cuda.max_memory_allocated() / (1024 ** 2) if torch.cuda.is_available() else 0
 
     metrics = {
-        "model": "GMOT_only",
+        "model": "All_datasets",
         "conf": 0.01,
         "iou": 0.6,
         "max_det": 500,
@@ -205,6 +207,6 @@ if __name__ == "__main__":
     print("CWD:", os.getcwd())
     print("FINAL YAML PATH:", Path(yamlPath).resolve())
 
-    best_weights = r"C:\Users\k2549603\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\runs\detect\gmot_only\weights\best.pt"
+    best_weights = r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\runs_final\detect\all_datasets\weights\best.pt"
 
     validate_best(best_weights)
