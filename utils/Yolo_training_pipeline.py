@@ -1,3 +1,4 @@
+import cv2
 from ultralytics import YOLO
 import torch
 import time
@@ -17,7 +18,7 @@ DEVICE = 0
 train_run = r"C:\Users\k2549603\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\runs\detect"
 runName = "all_datasets"
 
-eval_results_path = r"C:\Users\k2549603\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\YOLO_inference_evaluations\eval_results_YOLOm.json"
+eval_results_path = r"C:\Users\k2549603\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\YOLO_inference_evaluations\evaluation_results_dataset_combinations_final.json"
 
 batchSize = 16
 number_of_epochs = 50
@@ -42,6 +43,39 @@ def train(best_weights_path):
         seed=42,
     )
 
+def measure_fps(model,images_dir,max_frames=150):
+    imageFiles = sorted([f for f in os.listdir(images_dir) if f.endswith((".jpg","png","jpeg"))])
+    imageFiles = imageFiles[:max_frames]
+
+    # warm up
+    first_img = os.path.join(images_dir,imageFiles[0])
+    _ = model.predict(
+        source=first_img,
+        conf=0.01,
+        iou=0.6,
+        max_det=500,
+        agnostic_nms=False,
+        device=DEVICE,
+        verbose=False
+    )
+    frameCount = 0
+    start_time = time.time()
+    for img in imageFiles:
+        img_path = os.path.join(images_dir, img)
+        _ = model.predict(
+            source=img_path,
+            conf=0.01,
+            iou=0.6,
+            max_det=500,
+            agnostic_nms=False,
+            device=DEVICE,
+            verbose=False
+        )
+        frameCount += 1
+    total_time = time.time() - start_time
+    fps = frameCount / total_time if total_time > 0 else 0
+    return round(fps, 2)
+
 def validate_best(best_weights_path):
     model = YOLO(best_weights_path)
     _ = model.predict(
@@ -59,26 +93,26 @@ def validate_best(best_weights_path):
         data=yamlPath,
         split="val",
         imgsz=640,
-        conf=0.05,
+        conf=0.01,
         iou=0.6,
         max_det=500,
         batch=batchSize,
         device=DEVICE,
         seed=42,
-        agnostic_nms=True,
+        agnostic_nms=False,
         save=False,
         plots=False
     )
 
     total_tm = time.time() - start_time
     avg_inference_ms = results.speed["inference"]
-    fps = 1000 / avg_inference_ms if avg_inference_ms > 0 else 0
+    fps = measure_fps(model,images_dir=r"D:\datasets\gmot_yolo\val\images", max_frames=150)
 
     peak_vram = torch.cuda.max_memory_allocated() / (1024 ** 2) if torch.cuda.is_available() else 0
 
     metrics = {
-        "model": "All Datasets",
-        "conf": 0.05,
+        "model": "GMOT_only",
+        "conf": 0.01,
         "iou": 0.6,
         "max_det": 500,
         "detection_metrics": {
@@ -89,7 +123,7 @@ def validate_best(best_weights_path):
         },
         "real_time_metrics": {
             "avg_latency_ms": round(avg_inference_ms, 2),
-            "estimated_fps_gpu_only": round(fps, 1),
+            "estimated_real_fps": round(fps, 1),
             "peak_vram_usage_mb": round(peak_vram, 2)
         },
         "total_validation_time_sec": round(total_tm, 2)
@@ -119,7 +153,8 @@ def validate(best_weights_path):
             for iou in ious:
                 for det in dets:
                     start_time = time.time()
-
+                    if torch.cuda.is_available():
+                        torch.cuda.reset_peak_memory_stats()
                     results = model.val(
                         data=yamlPath,
                         split="val",
@@ -170,6 +205,6 @@ if __name__ == "__main__":
     print("CWD:", os.getcwd())
     print("FINAL YAML PATH:", Path(yamlPath).resolve())
 
-    best_weights = r"C:\Users\k2549603\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\ray_runs\best_overall.pt"
+    best_weights = r"C:\Users\k2549603\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\runs\detect\gmot_only\weights\best.pt"
 
-    train(best_weights)
+    validate_best(best_weights)
