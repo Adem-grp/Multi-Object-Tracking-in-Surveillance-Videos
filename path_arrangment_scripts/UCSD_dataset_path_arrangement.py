@@ -37,7 +37,7 @@ from tqdm import tqdm
 
 # ================= CONFIG =================
 SRC_ROOT = Path(r"C:/Users/USER/PycharmProjects/Multi-Object-Tracking-in-Surveillance-Videos/UCSD_Anomaly_Dataset.v1p2")
-DST_ROOT = Path(r"C:/Users/USER/PycharmProjects/Multi-Object-Tracking-in-Surveillance-Videos/datasets/ucsd_yolo")
+DST_ROOT = Path(r"/datasets/ucsd_yolo")
 
 FRAME_STRIDE = 1      # 1 = every frame, 2 = every other frame
 JPEG_QUALITY = 95

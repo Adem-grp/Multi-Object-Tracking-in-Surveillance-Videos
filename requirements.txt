@@ -9,3 +9,4 @@ ultralytics==8.4.41
 
 numpy
 filelock
+boxmot

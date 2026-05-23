@@ -15,7 +15,7 @@ from tqdm import tqdm
 
 # CONFIG
 SRC_ROOT = Path(r"C:/Users/USER/PycharmProjects/Multi-Object-Tracking-in-Surveillance-Videos/Avenue Dataset")
-DST_ROOT = Path(r"C:/Users/USER/PycharmProjects/Multi-Object-Tracking-in-Surveillance-Videos/datasets/avenue_yolo")
+DST_ROOT = Path(r"/datasets/avenue_yolo")
 TRAIN_RATIO, VAL_RATIO, TEST_RATIO = 0.7, 0.1, 0.2
 FRAME_STRIDE = 1
 JPEG_QUALITY = 95
