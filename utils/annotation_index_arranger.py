@@ -102,7 +102,6 @@ def check_gmot_gt(gt_path):
     print(f"{len(set(ids))} unique ids, {len(frames)} rows")
 
 
-
 if __name__ == "__main__":
     print("Apply FIX to CVAT_GT files frame re-indexing and class index change")
     for f in CVAT_GT_FILES:
@@ -111,4 +110,4 @@ if __name__ == "__main__":
         print("GMOT sanity check")
         for f in GMOT_GT_FILES:
             check_gmot_gt(f)
-    print("Processs is finished")
+    print("Process is finished")
