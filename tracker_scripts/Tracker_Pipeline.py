@@ -15,7 +15,6 @@ from boxmot import DeepSORT, ByteTrack, OcSort
 
 from OC_SORT.trackers.deepsort_tracker.deepsort import DeepSort
 
-print(signature(DeepSort))
 # TrackEval needed for HOTA computation
 try:
     import trackeval
@@ -26,7 +25,6 @@ except ImportError:
     print("Trackeval not available")
 
 from inspect import signature
-
 
 DetectorWeights = r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\runs_final\detect\all_datasets\weights\best.pt"
 OutDir = r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\tracker_outputs"
@@ -104,6 +102,13 @@ TrackerGrids = {  # will be extended
     },
 }
 
+ConfGrid = {
+    "bytetrack": [0.01,0.03,0.05],
+    "deepsort": [0.3,0.4,0.5],
+    "ocsort": [0.2,0.3,0.4],
+}
+IouGrid = [0.5, 0.6, 0.7]
+
 # Default params per tracker (used in baseline)
 TrackerDefaults = {
     "deepsort": {"max_dist": 0.2, "max_age": 30, "n_init": 3, "max_iou_dist": 0.7},
@@ -157,25 +162,25 @@ def tracker_on_sequence(img_folder, tracker_name, tracker_params, output_path):
         torch.cuda.reset_peak_memory_stats()
     mot_lines = []
     frame_times = []
-    total_time=0.0
-    for frame_idx,img_path in enumerate(frame_paths):
+    total_time = 0.0
+    for frame_idx, img_path in enumerate(frame_paths):
         frame = cv2.imread(str(img_path))
         if frame is None:
             print(f"Frame {frame_idx} cannot be read.")
             continue
         t_start = time.perf_counter()
         results = model.predict(
-            frame,conf=Conf, iou= Iou, imgsz= Imgsz, verbose=False,
+            frame, conf=Conf, iou=Iou, imgsz=Imgsz, verbose=False,
         )
-        dets= []
+        dets = []
         if results[0].boxes is not None and len(results[0].boxes):
-            boxes=results[0].boxes.xyxy.cpu().numpy()
+            boxes = results[0].boxes.xyxy.cpu().numpy()
             confs = results[0].confs.cpu().numpy()
             clss = results[0].cls.cpu().numpy()
             for box, conf, cls in zip(boxes, confs, clss):
-                dets.append([*box,conf,cls])
-        dets_np = np.array(dets) if dets else np.empty((0,6))
-        tracks = tracker.update(dets_np,frame)
+                dets.append([*box, conf, cls])
+        dets_np = np.array(dets) if dets else np.empty((0, 6))
+        tracks = tracker.update(dets_np, frame)
         t_end = time.perf_counter()
         frame_ms = (t_end - t_start) * 1000
         total_time += (t_end - t_start)
@@ -183,15 +188,15 @@ def tracker_on_sequence(img_folder, tracker_name, tracker_params, output_path):
 
         for track in tracks:
             x1, y1, x2, y2, conf, tid = track[0], track[1], track[2], track[3], float(track[5]), int(track[4])
-            w=x2-x1
-            h=y2-y1
+            w = x2 - x1
+            h = y2 - y1
             mot_lines.append(
                 f"{frame_idx},{tid},{x1:.2f},{y1:.2f},{w:.2f},{h:.2f},{conf:.4f},-1,-1,-1"
             )
 
     output_path.write_text("\n".join(mot_lines), encoding="utf-8")
     n_frames = len(frame_paths)
-    fps = n_frames / total_time if total_time >0 else 0.0 # check if this gpu_only fps fix it
+    fps = n_frames / total_time if total_time > 0 else 0.0  # check if this gpu_only fps fix it
     latency_mean = round(float(np.mean(frame_times)), 2)
     latency_p95 = round(float(np.percentile(frame_times, 95)), 2)
     peak_vram = round(torch.cuda.max_memory_allocated() / 1024 / 1024, 1) if torch.cuda.is_available() else 0.0
@@ -205,8 +210,46 @@ def tracker_on_sequence(img_folder, tracker_name, tracker_params, output_path):
         "peak_vram": peak_vram,
     }
 
+# evaluate one sequence
+def load_mot(mot_path):
+    path = Path(mot_path)
+    if not path.exists() or path.stat().st_size == 0:
+        return pd.DataFrame(columns=["frame", "id", "x", "y", "w", "h"])
+    df = pd.read_csv(mot_path,header=None, names=["frame", "id", "x", "y", "w", "h","conf","cx","cy","cz"])
+    return df[["frame","id","x","y","w","h"]].copy()
+
+def evaluate_sequence(gt_path,pred_path,iou_threshold=0.5):
+    gt_df = load_mot(gt_path)
+    pred_df = load_mot(pred_path)
+    acc = mm.MOTAccumulator(auto_id=True)
+    all_frames = sorted(set(gt["frame"] | set(pred_df["frame"])).union(set(gt_df["frame"])))
+    for frame in all_frames:
+        gt_frame = gt_df[gt_df["frame"] == frame]
+        pred_frame = pred_df[pred_df["frame"] == frame]
+        gt_boxes = gt_frame[["x","y","w","h"]].values.tolist()
+        pred_boxes = pred_frame[["x","y","w","h"]].values.tolist()
+        gt_ids= gt_frame["id"].tolist()
+        pred_ids = pred_frame["id"].tolist()
+        if gt_boxes and pred_boxes:
+            distances = mm.distances.iou_matrix(gt_boxes, pred_boxes, max_iou=1-iou_threshold)
+        else:
+            distances = np.empty((len(gt_boxes), len(pred_boxes)))
+        acc.update(gt_ids, pred_ids, distances)
+    mh = mm.metrics.create()
+    summary = mh.compute(
+        acc,
+        metrics=["mota", "idf1", "num_switches", "num_misses",
+                 "num_false_positives", "mostly_tracked",
+                 "mostly_lost", "num_fragmentations"],
+        name="eval",
+    )
+    r = summary.to_dict(orient="records")[0]
+    r["mota_pct"] = round(float(r["mota"]) * 100, 2)
+    r["idf1_pct"] = round(float(r["idf1"]) * 100, 2)
+    return r
 
 
+# evaluate dataset average it across clips as there are multiple clips per dataset
 
 
 
