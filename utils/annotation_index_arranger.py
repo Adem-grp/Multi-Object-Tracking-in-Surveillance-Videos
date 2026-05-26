@@ -71,42 +71,44 @@ def fix_cvat_gt(gt_path):
         except ValueError:
             pass
         if len(parts) > 7:
-            if parts[7].strip != str(Person):
+            if parts[7].strip() != str(Person):
                 parts[7] = str(Person)
                 class_changed += 1
-            fixed.append(",".join(parts))
-        path.write_text("\n".join(fixed), encoding="utf-8")
-        print(f"{path.name}-{frame_changed} frames shifted, {class_changed} class indices fixed")
+        fixed.append(",".join(parts))
+    path.write_text("\n".join(fixed), encoding="utf-8")
+    print(f"{path.name}-{frame_changed} frames shifted, {class_changed} class indices fixed")
 
-        # gmot label sanity check
-        def check_gmot_gt(gt_path):
-            path = Path(gt_path)
-            if not path.exists():
-                print(f"fix_cvat_gt {gt_path} is skipped not found ")
-                return
-            lines = path.read_text(encoding="utf-8").strip().splitlines()
-            frames, ids = [], []
-            for raw in lines:
-                parts = parse_line(raw)
-                if parts is None:
-                    continue
-                try:
-                    frames.append(int(float(parts[0])))
-                    ids.append(int(float(parts[1])))
-                except ValueError:
-                    pass
-            if not frames:
-                print(f"{gt_path} no valid rows")
-                return
-            print(f"{path.name} - frames {min(frames)}-{max(frames)}")
-            print(f"{len(set(ids))} unique ids, {len(frames)} rows")
 
-            if __name__ == "__main__":
-                print("Apply FIX to CVAT_GT files frame re-indexing and class index change")
-                for f in CVAT_GT_FILES:
-                    fix_cvat_gt(f)
-                if GMOT_GT_FILES:
-                    print("GMOT sanity check")
-                    for f in GMOT_GT_FILES:
-                        check_gmot_gt(f)
-                print("Processs is finished")
+def check_gmot_gt(gt_path):
+    path = Path(gt_path)
+    if not path.exists():
+        print(f"fix_cvat_gt {gt_path} is skipped not found ")
+        return
+    lines = path.read_text(encoding="utf-8").strip().splitlines()
+    frames, ids = [], []
+    for raw in lines:
+        parts = parse_line(raw)
+        if parts is None:
+            continue
+        try:
+            frames.append(int(float(parts[0])))
+            ids.append(int(float(parts[1])))
+        except ValueError:
+            pass
+    if not frames:
+        print(f"{gt_path} no valid rows")
+        return
+    print(f"{path.name} - frames {min(frames)}-{max(frames)}")
+    print(f"{len(set(ids))} unique ids, {len(frames)} rows")
+
+
+
+if __name__ == "__main__":
+    print("Apply FIX to CVAT_GT files frame re-indexing and class index change")
+    for f in CVAT_GT_FILES:
+        fix_cvat_gt(f)
+    if GMOT_GT_FILES:
+        print("GMOT sanity check")
+        for f in GMOT_GT_FILES:
+            check_gmot_gt(f)
+    print("Processs is finished")
