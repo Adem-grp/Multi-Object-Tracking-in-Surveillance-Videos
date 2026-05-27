@@ -11,3 +11,4 @@ numpy
 filelock
 boxmot
 trackeval
+motmetrics
