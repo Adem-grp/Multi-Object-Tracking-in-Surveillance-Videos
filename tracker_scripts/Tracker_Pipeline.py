@@ -10,6 +10,8 @@ import pandas as pd
 import motmetrics as mm
 from itertools import product
 from pathlib import Path
+
+from trackeval.metrics import HOTA
 from ultralytics import YOLO
 from boxmot import DeepSORT, ByteTrack, OcSort
 
@@ -194,7 +196,7 @@ def tracker_on_sequence(img_folder, tracker_name, tracker_params, output_path, c
             w = x2 - x1
             h = y2 - y1
             mot_lines.append(
-                f"{frame_idx},{tid},{x1:.2f},{y1:.2f},{w:.2f},{h:.2f},{conf:.4f},-1,-1,-1"
+                f"{frame_idx},{tid},{x1:.2f},{y1:.2f},{w:.2f},{h:.2f},{tconf:.4f},-1,-1,-1"
             )
 
     output_path.write_text("\n".join(mot_lines), encoding="utf-8")
@@ -250,8 +252,10 @@ def evaluate_sequence(gt_path, pred_path, iou_threshold=0.5):
         name="eval",
     )
     r = summary.to_dict(orient="records")[0]
+    hota= compute_hota(gt_df, pred_df,iou_threshold=iou_threshold)
     r["mota_pct"] = round(float(r["mota"]) * 100, 2)
     r["idf1_pct"] = round(float(r["idf1"]) * 100, 2)
+    r["hota_pct"] = round(hota,2) if hota is not None else 0.0
     return r
 
 
@@ -270,7 +274,7 @@ def evaluate_dataset(dataset_name, tracker_name, tracker_params, output_subdir, 
         eval_seq = evaluate_sequence(gt_path, str(out_file))
         clip_rows.append(eval_seq)
     avg = {}
-    for k in ["mota_pct", "idf1_pct", "num_switches", "num_misses",
+    for k in ["mota_pct", "idf1_pct","hota_pct", "num_switches", "num_misses",
               "num_false_positives", "mostly_tracked", "mostly_lost", "num_fragmentations"]:
         vals = [row[k] for row in clip_rows if k in row]
         avg[k] = round(float(np.mean(vals)), 3) if vals else 0.0
@@ -298,6 +302,7 @@ def run_baseline():
                 "dataset_name": dataset_name,
                 "conf": Def_conf,
                 "iou": Def_iou,
+                "HOTA (%)": avg["hota_pct"],
                 "MOTA (%)": avg["mota_pct"],
                 "IDF1 (%)": avg["idf1_pct"],
                 "ID Switches": avg["num_switches"],
@@ -315,6 +320,31 @@ def run_baseline():
     print(f"\n[DONE] {OutDir / 'baseline_results.csv'}")
     print(df.to_string(index=False))
 
+
+def compute_hota(gt_df, pred_df, iou_threshold=0.5):
+    hota_metric = HOTA({"THRESHOLD": iou_threshold})
+    data = {
+        "gt_ids": [],
+        "tracker_ids": [],
+        "similarity_scores": [],
+    }
+    all_frames = sorted(set(gt_df["frame"]) | set(pred_df["frame"]))
+    for frame in all_frames:
+        gt_frame = gt_df[gt_df["frame"] == frame]
+        pred_frame = pred_df[pred_df["frame"] == frame]
+        gt_ids = gt_frame["id"].to_numpy()
+        pred_ids = pred_frame["id"].to_numpy()
+        gt_boxes = gt_frame[["x", "y", "w", "h"]].to_numpy()
+        pred_boxes = pred_frame[["x", "y", "w", "h"]].to_numpy()
+        if len(gt_boxes) and len(pred_boxes):
+            sim = mm.distances.iou_matrix(gt_boxes, pred_boxes)
+        else:
+            sim = np.zeros((len(gt_boxes), len(pred_boxes)))
+        data["gt_ids"].append(gt_ids)
+        data["tracker_ids"].append(pred_ids)
+        data["similarity_scores"].append(sim)
+    res = hota_metric.eval_sequence(data)
+    return float(res["HOTA"])* 100
 
 def run_tuning(tracker_name):
     print("Tuning")
@@ -337,6 +367,7 @@ def run_tuning(tracker_name):
                 "run_id": run_id,
                 "conf": conf,
                 "iou": iou,
+                "HOTA (%)": avg["hota_pct"],
                 "MOTA (%)": avg["mota_pct"],
                 "IDF1 (%)": avg["idf1_pct"],
                 "ID Switches": avg["num_switches"],
@@ -357,10 +388,10 @@ def run_tuning(tracker_name):
             if subset.empty:
                 best_conf_iou[dataset_name] = (Def_conf, Def_iou)
                 continue
-            best = subset.loc[subset["IDF1 (%)"].idxmax()]
+            best = subset.loc[subset["HOTA (%)"].idxmax()]
             best_conf_iou[dataset_name] = (float(best["conf"]), float(best["iou"]))
             print(f"  [Stage 1 best] {dataset_name}: conf={best['conf']} iou={best['iou']} "
-                  f"IDF1={best['IDF1 (%)']}%")
+                  f"IDF1={best['IDF1 (%)']}%, HOTA = {best['HOTA (%)']}")
 
         print("tracker paramaters eval with best conf and iou")
         grid = TrackerGrids[tracker_name]
@@ -370,7 +401,7 @@ def run_tuning(tracker_name):
         for dataset_name in DATASETS:
             best_conf, best_iou = best_conf_iou[dataset_name]
             print(f" Dataset {dataset_name}: conf={best_conf} iou={best_iou} ")
-            best_idf1, best_combo = -1, None
+            best_hota, best_combo = -1, None
             for combo in combos:
                 params = dict(zip(keys, combo))
                 run_id = "_".join(f"{k}{v}" for k, v in params.items())
@@ -384,6 +415,7 @@ def run_tuning(tracker_name):
                        "conf": best_conf, "iou": best_iou,
                        **params,
                        "MOTA (%)": avg["mota_pct"], "IDF1 (%)": avg["idf1_pct"],
+                       "HOTA (%)": avg["hota_pct"],
                        "ID Switches": avg["num_switches"],
                        "MostlyTracked": avg["mostly_tracked"], "MostlyLost": avg["mostly_lost"],
                        "FPS": avg["fps_mean"],
@@ -392,10 +424,10 @@ def run_tuning(tracker_name):
                        "Peak VRAM (MB)": avg["peak_vram_mb"]}
                 all_rows.append(row)
 
-                if avg["idf1_pct"] > best_idf1:
-                    best_idf1, best_combo = avg["idf1_pct"], params
+                if avg["hota_pct"] > best_hota:
+                    best_hota, best_combo = avg["hota_pct"], params
 
-                print(f"  Best IDF1: {best_idf1}%  Params: {best_combo}")
+                print(f"  Best HOTA: {best_hota}%  Params: {best_combo}")
         df = pd.DataFrame(all_rows)
         csv_path = OutDir / f"tuning_{tracker_name}.csv"
         df.to_csv(csv_path, index=False)
@@ -413,10 +445,10 @@ def build_results_table():
         df = pd.read_csv(csv_path)
         stage2 = df[df["stage"] == 2]
         for dataset_name in DATASETS:
-            subset = stage2[stage2["dataset"] == dataset_name]
+            subset = stage2[stage2["dataset_name"] == dataset_name]
             if subset.empty:
                 continue
-            best = subset.loc[subset["IDF1 (%)"].idxmax()]
+            best = subset.loc[subset["HOTA (%)"].idxmax()]
             rows.append({
                 "Tracker": tracker_name,
                 "Dataset": dataset_name,
@@ -425,8 +457,8 @@ def build_results_table():
                 "MOTA (%)": best["MOTA (%)"],
                 "IDF1 (%)": best["IDF1 (%)"],
                 "ID Switches": int(best["ID Switches"]),
-                "MostlyTracked": round(best["MT"], 3),
-                "MostlyLost": round(best["ML"], 3),
+                "MostlyTracked": round(best["MostlyTracked"], 3),
+                "MostlyLost": round(best["MostlyLost"], 3),
                 "FPS": best.get("FPS", "-"),
                 "Latency mean (ms)": best.get("Latency mean (ms)", "-"),
                 "Latency p95 (ms)": best.get("Latency p95 (ms)", "-"),
@@ -446,7 +478,7 @@ def build_results_table():
     print(f"\n[DONE] {OutDir / 'results_summary.csv'}")
 
     print("\n[BEST TRACKER PER DATASET]")
-    best_per = summary.loc[summary.groupby("Dataset")["IDF1 (%)"].idxmax()]
+    best_per = summary.loc[summary.groupby("Dataset")["HOTA (%)"].idxmax()]
     print(best_per[["Dataset", "Tracker", "conf", "iou", "MOTA (%)", "IDF1 (%)"]].to_string(index=False))
 
 

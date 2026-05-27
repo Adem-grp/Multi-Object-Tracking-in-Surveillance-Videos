@@ -209,4 +209,4 @@ if __name__ == "__main__":
 
     best_weights = r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\runs_final\detect\all_datasets\weights\best.pt"
 
-    validate_best(best_weights)
+    #validate_best(best_weights)
