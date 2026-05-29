@@ -153,7 +153,7 @@ def build_tracker(tracker, params):
 # run tracker on one sequence
 def tracker_on_sequence(img_folder, tracker_name, tracker_params, output_path, conf, iou):
     output_path = Path(output_path)
-    output_path.mkdir(parents=True, exist_ok=True)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     img_folder = Path(img_folder)
     frame_paths = sorted(img_folder.glob("*.jpg"))
     if not frame_paths:
@@ -212,7 +212,7 @@ def tracker_on_sequence(img_folder, tracker_name, tracker_params, output_path, c
         "frames": n_frames,
         "latency_mean_ms": latency_mean,
         "latency_p95_ms": latency_p95,
-        "peak_vram": peak_vram,
+        "peak_vram_mb": peak_vram,
     }
 
 
@@ -337,7 +337,7 @@ def compute_hota(gt_df, pred_df, iou_threshold=0.5):
         gt_boxes = gt_frame[["x", "y", "w", "h"]].to_numpy()
         pred_boxes = pred_frame[["x", "y", "w", "h"]].to_numpy()
         if len(gt_boxes) and len(pred_boxes):
-            sim = mm.distances.iou_matrix(gt_boxes, pred_boxes)
+            sim = 1.0 - mm.distances.iou_matrix(gt_boxes, pred_boxes)
         else:
             sim = np.zeros((len(gt_boxes), len(pred_boxes)))
         data["gt_ids"].append(gt_ids)
@@ -380,58 +380,58 @@ def run_tuning(tracker_name):
             }
             s1_rows.append(row)
             all_rows.append(row)
-        # find the best conf/iou based on IDF1 for now change it to HOTA later if possible
-        s1_df = pd.DataFrame(s1_rows)
-        best_conf_iou = {}
-        for dataset_name in DATASETS:
-            subset = s1_df[s1_df["dataset_name"] == dataset_name]
-            if subset.empty:
-                best_conf_iou[dataset_name] = (Def_conf, Def_iou)
-                continue
-            best = subset.loc[subset["HOTA (%)"].idxmax()]
-            best_conf_iou[dataset_name] = (float(best["conf"]), float(best["iou"]))
-            print(f"  [Stage 1 best] {dataset_name}: conf={best['conf']} iou={best['iou']} "
-                  f"IDF1={best['IDF1 (%)']}%, HOTA = {best['HOTA (%)']}")
+    # find the best conf/iou per dataset based on HOTA — computed after all stage 1 runs complete
+    s1_df = pd.DataFrame(s1_rows)
+    best_conf_iou = {}
+    for ds in DATASETS:
+        subset = s1_df[s1_df["dataset_name"] == ds]
+        if subset.empty:
+            best_conf_iou[ds] = (Def_conf, Def_iou)
+            continue
+        best = subset.loc[subset["HOTA (%)"].idxmax()]
+        best_conf_iou[ds] = (float(best["conf"]), float(best["iou"]))
+        print(f"  [Stage 1 best] {ds}: conf={best['conf']} iou={best['iou']} "
+              f"IDF1={best['IDF1 (%)']}%, HOTA = {best['HOTA (%)']}")
 
-        print("tracker paramaters eval with best conf and iou")
-        grid = TrackerGrids[tracker_name]
-        keys = list(grid.keys())
-        combos = list(product(*grid.values()))
-        print(f"{len(combos)} combos per dataset")
-        for dataset_name in DATASETS:
-            best_conf, best_iou = best_conf_iou[dataset_name]
-            print(f" Dataset {dataset_name}: conf={best_conf} iou={best_iou} ")
-            best_hota, best_combo = -1, None
-            for combo in combos:
-                params = dict(zip(keys, combo))
-                run_id = "_".join(f"{k}{v}" for k, v in params.items())
-                out_dir = OutDir / "tuning" / tracker_name / "stage2" / dataset_name / run_id
-                out_dir.mkdir(parents=True, exist_ok=True)
+    print("tracker paramaters eval with best conf and iou")
+    grid = TrackerGrids[tracker_name]
+    keys = list(grid.keys())
+    combos = list(product(*grid.values()))
+    print(f"{len(combos)} combos per dataset")
+    for dataset_name in DATASETS:
+        best_conf, best_iou = best_conf_iou[dataset_name]
+        print(f" Dataset {dataset_name}: conf={best_conf} iou={best_iou} ")
+        best_hota, best_combo = -1, None
+        for combo in combos:
+            params = dict(zip(keys, combo))
+            run_id = "_".join(f"{k}{v}" for k, v in params.items())
+            out_dir = OutDir / "tuning" / tracker_name / "stage2" / dataset_name / run_id
+            out_dir.mkdir(parents=True, exist_ok=True)
 
-                avg = evaluate_dataset(dataset_name, tracker_name,
-                                       params, out_dir, best_conf, best_iou)
-                row = {"tracker": tracker_name, "dataset": dataset_name,
-                       "stage": 2, "run_id": run_id,
-                       "conf": best_conf, "iou": best_iou,
-                       **params,
-                       "MOTA (%)": avg["mota_pct"], "IDF1 (%)": avg["idf1_pct"],
-                       "HOTA (%)": avg["hota_pct"],
-                       "ID Switches": avg["num_switches"],
-                       "MostlyTracked": avg["mostly_tracked"], "MostlyLost": avg["mostly_lost"],
-                       "FPS": avg["fps_mean"],
-                       "Latency mean (ms)": avg["latency_mean_ms"],
-                       "Latency p95 (ms)": avg["latency_p95_ms"],
-                       "Peak VRAM (MB)": avg["peak_vram_mb"]}
-                all_rows.append(row)
+            avg = evaluate_dataset(dataset_name, tracker_name,
+                                   params, out_dir, best_conf, best_iou)
+            row = {"tracker": tracker_name, "dataset": dataset_name,
+                   "stage": 2, "run_id": run_id,
+                   "conf": best_conf, "iou": best_iou,
+                   **params,
+                   "MOTA (%)": avg["mota_pct"], "IDF1 (%)": avg["idf1_pct"],
+                   "HOTA (%)": avg["hota_pct"],
+                   "ID Switches": avg["num_switches"],
+                   "MostlyTracked": avg["mostly_tracked"], "MostlyLost": avg["mostly_lost"],
+                   "FPS": avg["fps_mean"],
+                   "Latency mean (ms)": avg["latency_mean_ms"],
+                   "Latency p95 (ms)": avg["latency_p95_ms"],
+                   "Peak VRAM (MB)": avg["peak_vram_mb"]}
+            all_rows.append(row)
 
-                if avg["hota_pct"] > best_hota:
-                    best_hota, best_combo = avg["hota_pct"], params
+            if avg["hota_pct"] > best_hota:
+                best_hota, best_combo = avg["hota_pct"], params
 
-                print(f"  Best HOTA: {best_hota}%  Params: {best_combo}")
-        df = pd.DataFrame(all_rows)
-        csv_path = OutDir / f"tuning_{tracker_name}.csv"
-        df.to_csv(csv_path, index=False)
-        print("Tuning complete")
+            print(f"  Best HOTA: {best_hota}%  Params: {best_combo}")
+    df = pd.DataFrame(all_rows)
+    csv_path = OutDir / f"tuning_{tracker_name}.csv"
+    df.to_csv(csv_path, index=False)
+    print("Tuning complete")
 
 
 def build_results_table():
@@ -454,6 +454,7 @@ def build_results_table():
                 "Dataset": dataset_name,
                 "conf": best["conf"],
                 "iou": best["iou"],
+                "HOTA (%)": best["HOTA (%)"],
                 "MOTA (%)": best["MOTA (%)"],
                 "IDF1 (%)": best["IDF1 (%)"],
                 "ID Switches": int(best["ID Switches"]),
