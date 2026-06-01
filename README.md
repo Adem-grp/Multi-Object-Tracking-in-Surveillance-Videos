@@ -135,15 +135,16 @@ Extensive grid-search evaluation (900+ configurations):
 
 ## 📈 Performance Benchmarks
 
-### Aggregated Results (All Datasets Model)
+### Aggregated Results (All Dataset Combinations)
 
-| Metric | Baseline | Tuned | Change |
-|--------|----------|-------|--------|
-| **Recall** | 0.33-0.41 | 0.54-0.60 | +45-50% |
-| **mAP50** | 0.35-0.41 | 0.58-0.64 | +57% |
-| **Precision** | 0.52-0.78 | 0.80-0.85 | +3-63% |
-| **Detection Count** | 14-43 | 26-70 | Model-dependent |
-| **FPS** | 59-65 | 57-61 | -2 to -8% |
+| Metric | Baseline Range | Tuned Range | Change Range |
+|--------|----------------|------------|---------------|
+| **Recall** | 0.335-0.416 | 0.546-0.597 | +39.8% to +77.6% |
+| **mAP50** | 0.358-0.408 | 0.586-0.640 | +54.6% to +78.9% |
+| **Precision** | 0.526-0.784 | 0.813-0.850 | +4.3% to +53.2% |
+| **FPS** | 59.7-65.0 | 57.8-61.2 | -2% to -5% |
+
+**Note**: Changes vary significantly by model combination. GMOT single model shows highest gains (+71-72%), while GMOT_Avenue shows more moderate gains (+40-60%). "All Datasets" model (primary) achieves +48.7% recall, +54.7% mAP50, +19.2% precision.
 
 ### Detailed Evaluation Metrics
 
@@ -401,9 +402,9 @@ cv2.destroyAllWindows()
 
 The performance improvement results from **two synergistic optimizations**:
 
-- **Training Optimization** (Ray Tune): +57% mAP, +50% recall
-- **Inference Tuning** (Lower conf): Exposed additional detections
-- **Combined Effect**: Superior performance maintained during tracking
+- **Training Optimization** (Ray Tune): Baseline mAP improvements through hyperparameter tuning
+- **Inference Tuning** (Lower conf threshold 0.05→0.01): Exposed additional detections (+40-78% recall across models)
+- **Combined Effect**: Superior performance maintained during tracking with +54-79% mAP50 gains
 
 ### 2. Model Selection Insights
 
