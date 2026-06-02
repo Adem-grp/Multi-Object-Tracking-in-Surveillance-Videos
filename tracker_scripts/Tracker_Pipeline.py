@@ -27,7 +27,7 @@ except ImportError:
     print("Trackeval not available")
 
 from inspect import signature
-
+# change this paths for lab computer before running
 DetectorWeights = r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\runs_final\detect\all_datasets\weights\best.pt"
 OutDir = r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\tracker_outputs"
 
@@ -38,71 +38,71 @@ Def_conf = 0.01
 Def_iou = 0.6
 
 # Datasets since there are multiple videos per dataset it is important to arrange the ground truths and video paths
-
+# change these paaths after putting the datasets folder to the hard drive
 DATASETS = {
     "avenue": [
-        (r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\avenue_yolo\test\img1",
-         r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\avenue_yolo\test\gt\gt.txt"), ],
+        (r"D:\datasets\avenue_yolo\test\img1",
+         r"D:\datasets\avenue_yolo\test\gt\gt.txt"), ],
     "UCSD": [
-        (r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\ucsd_yolo\test\ped1_test1\img1",
-         r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\ucsd_yolo\test\ped1_test1\gt\gt.txt"),
-        (r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\ucsd_yolo\test\ped1_test2\img1",
-         r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\ucsd_yolo\test\ped1_test2\gt\gt.txt"),
-        (r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\ucsd_yolo\test\ped1_test3\img1",
-         r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\ucsd_yolo\test\ped1_test3\gt\gt.txt"),
-        (r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\ucsd_yolo\test\ped2_test1\img1",
-         r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\ucsd_yolo\test\ped2_test1\gt\gt.txt"),
-        (r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\ucsd_yolo\test\ped2_test2\img1",
-         r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\ucsd_yolo\test\ped2_test2\gt\gt.txt"),
-        (r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\ucsd_yolo\test\ped2_test3\img1",
-         r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\ucsd_yolo\test\ped2_test3\gt\gt.txt"),
+        (r"D:\datasets\ucsd_yolo\test\ped1_test1\img1",
+         r"D:\datasets\ucsd_yolo\test\ped1_test1\gt\gt.txt"),
+        (r"D:\datasets\ucsd_yolo\test\ped1_test2\img1",
+         r"D:\datasets\ucsd_yolo\test\ped1_test2\gt\gt.txt"),
+        (r"D:\datasets\ucsd_yolo\test\ped1_test3\img1",
+         r"D:\datasets\ucsd_yolo\test\ped1_test3\gt\gt.txt"),
+        (r"D:\datasets\ucsd_yolo\test\ped2_test1\img1",
+         r"D:\datasets\ucsd_yolo\test\ped2_test1\gt\gt.txt"),
+        (r"D:\datasets\ucsd_yolo\test\ped2_test2\img1",
+         r"D:\datasets\ucsd_yolo\test\ped2_test2\gt\gt.txt"),
+        (r"D:\datasets\ucsd_yolo\test\ped2_test3\img1",
+         r"D:\datasets\ucsd_yolo\test\ped2_test3\gt\gt.txt"),
     ],
     "shanghai": [
-        (r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\shanghaitech_yolo\test\shanghai_10\img1",
-         r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\shanghaitech_yolo\test\shanghai_10\gt\gt.txt"),
-        (r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\shanghaitech_yolo\test\shanghai_128\img1",
-         r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\shanghaitech_yolo\test\shanghai_128\gt\gt.txt"),
-        (r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\shanghaitech_yolo\test\shanghai_164\img1",
-         r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\shanghaitech_yolo\test\shanghai_164\gt\gt.txt"),
+        (r"D:\datasets\shanghaitech_yolo\test\shanghai_10\img1",
+         r"D:\datasets\shanghaitech_yolo\test\shanghai_10\gt\gt.txt"),
+        (r"D:\datasets\shanghaitech_yolo\test\shanghai_128\img1",
+         r"D:\datasets\shanghaitech_yolo\test\shanghai_128\gt\gt.txt"),
+        (r"D:\datasets\shanghaitech_yolo\test\shanghai_164\img1",
+         r"D:\datasets\shanghaitech_yolo\test\shanghai_164\gt\gt.txt"),
     ],
     "gmot": [
-        (r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\gmot_yolo\test\airplane-1\img1",
-         r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\gmot_yolo\test\airplane-1\gt\gt.txt"),
-        (r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\gmot_yolo\test\ball-1\img1",
-         r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\gmot_yolo\test\ball-1\gt\gt.txt"),
-        (r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\gmot_yolo\test\ball-2\img1",
-         r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\gmot_yolo\test\ball-2\gt\gt.txt"),
-        (r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\gmot_yolo\test\ball-3\img1",
-         r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\gmot_yolo\test\ball-3\gt\gt.txt"),
-        (r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\gmot_yolo\test\balloon-0\img1",
-         r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\gmot_yolo\test\balloon-0\gt\gt.txt"),
-        (r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\gmot_yolo\test\bird-2\img1",
-         r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\gmot_yolo\test\bird-2\gt\gt.txt"),
-        (r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\gmot_yolo\test\bird-3\img1",
-         r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\gmot_yolo\test\bird-3\gt\gt.txt"),
-        (r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\gmot_yolo\test\boat-1\img1",
-         r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\gmot_yolo\test\boat-1\gt\gt.txt"), ],
+        (r"D:\datasets\gmot_yolo\test\airplane-1\img1",
+         r"D:\datasets\gmot_yolo\test\airplane-1\gt\gt.txt"),
+        (r"D:\datasets\gmot_yolo\test\ball-1\img1",
+         r"D:\datasets\gmot_yolo\test\ball-1\gt\gt.txt"),
+        (r"D:\datasets\gmot_yolo\test\ball-2\img1",
+         r"D:\datasets\gmot_yolo\test\ball-2\gt\gt.txt"),
+        (r"D:\datasets\gmot_yolo\test\ball-3\img1",
+         r"D:\datasets\gmot_yolo\test\ball-3\gt\gt.txt"),
+        (r"D:\datasets\gmot_yolo\test\balloon-0\img1",
+         r"D:\datasets\gmot_yolo\test\balloon-0\gt\gt.txt"),
+        (r"D:\datasets\gmot_yolo\test\bird-2\img1",
+         r"D:\datasets\gmot_yolo\test\bird-2\gt\gt.txt"),
+        (r"D:\datasets\gmot_yolo\test\bird-3\img1",
+         r"D:\datasets\gmot_yolo\test\bird-3\gt\gt.txt"),
+        (r"D:\datasets\gmot_yolo\test\boat-1\img1",
+         r"D:\datasets\gmot_yolo\test\boat-1\gt\gt.txt"), ],
     # turn gmot to video and add its gt as well
 }
 
 TrackerGrids = {  # will be extended
     "deepsort": {
         "max_dist": [0.1, 0.2, 0.3],
-        "max_age": [30, 50, 70],
+        "max_age": [30, 50, 70,100],
         "n_init": [1, 3, 5],
         "max_iou_dist": [0.5, 0.7, 0.9],
     },
     "bytetrack": {
-        "track_high_thresh": [0.4, 0.5, 0.6],
+        "track_high_thresh": [0.4, 0.5, 0.6,0.7,0.8],
         "track_low_thresh": [0.05, 0.1, 0.2],
-        "track_buffer": [20, 30, 40],
+        "track_buffer": [20, 30, 40,60],
         "match_thresh": [0.7, 0.8, 0.9],
     },
     "ocsort": {
-        "det_thresh": [0.4, 0.5, 0.6],
-        "max_age": [20, 30, 50],
+        "det_thresh": [0.4, 0.5, 0.6,0.7],
+        "max_age": [20, 30, 40, 50,60,70],
         "min_hits": [1, 3, 5],
-        "iou_threshold": [0.2, 0.3, 0.4],
+        "iou_threshold": [0.2, 0.3, 0.4,0.5,0.6,0.7],
     },
 }
 
