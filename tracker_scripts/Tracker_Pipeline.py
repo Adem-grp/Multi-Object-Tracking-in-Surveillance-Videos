@@ -29,7 +29,7 @@ except ImportError:
 from inspect import signature
 # change this paths for lab computer before running
 DetectorWeights = r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\runs_final\detect\all_datasets\weights\best.pt"
-OutDir = r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\tracker_outputs"
+OutDir = Path(r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\tracker_outputs")
 
 # ReID is for deepsort it will be downloaded automatically after first run
 ReID_weights = Path("osnet_x0_25_msmt17.pt")
@@ -100,8 +100,8 @@ TrackerGrids = {  # will be extended
     },
     "ocsort": {
         "det_thresh": [0.4, 0.5, 0.6,0.7],
-        "max_age": [20, 30, 40, 50,60,70],
-        "min_hits": [1, 3, 5],
+        "max_age": [20, 30, 40, 50,70],
+        "min_hits": [1, 3],
         "iou_threshold": [0.2, 0.3, 0.4,0.5,0.6,0.7],
     },
 }
@@ -181,8 +181,8 @@ def tracker_on_sequence(img_folder, tracker_name, tracker_params, output_path, c
             boxes = results[0].boxes.xyxy.cpu().numpy()
             confs = results[0].boxes.conf.cpu().numpy()
             clss = results[0].boxes.cls.cpu().numpy()
-            for box, conf, cls in zip(boxes, confs, clss):
-                dets.append([*box, conf, cls])
+            for box, det_conf, cls in zip(boxes, confs, clss):
+                dets.append([*box, det_conf, cls])
         dets_np = np.array(dets) if dets else np.empty((0, 6))
         tracks = tracker.update(dets_np, frame)
         t_end = time.perf_counter()
@@ -294,9 +294,9 @@ def run_baseline():
         print(f" Tracker {tracker_name}")
         for dataset_name in DATASETS:
             print(f" Dataset {dataset_name}")
-            out_dir = OutDir / "baseline" / tracker_name / dataset_name
-            out_dir.mkdir(parents=True, exist_ok=True)
-            avg = evaluate_dataset(dataset_name, tracker_name, default_params, out_dir, Def_conf, Def_iou)
+            tmp_dir = OutDir / "_tmp" / dataset_name
+            tmp_dir.mkdir(parents=True, exist_ok=True)
+            avg = evaluate_dataset(dataset_name, tracker_name, default_params, tmp_dir, Def_conf, Def_iou)
             row = {
                 "tracker_name": tracker_name,
                 "dataset_name": dataset_name,
@@ -357,9 +357,9 @@ def run_tuning(tracker_name):
         print(f" Dataset {dataset_name}")
         for conf, iou in product(conf_vals, iou_vals):
             run_id = f"conf:{conf},iou:{iou}"
-            out_dir = OutDir / "tuning" / tracker_name / "stage1" / dataset_name / run_id
-            out_dir.mkdir(parents=True, exist_ok=True)
-            avg = evaluate_dataset(dataset_name, tracker_name, TrackerDefaults[tracker_name], out_dir, conf, iou)
+            tmp_dir = OutDir / "_tmp" / dataset_name
+            tmp_dir.mkdir(parents=True, exist_ok=True)
+            avg = evaluate_dataset(dataset_name, tracker_name, TrackerDefaults[tracker_name], tmp_dir, conf, iou)
             row = {
                 "tracker_name": tracker_name,
                 "dataset_name": dataset_name,
@@ -405,12 +405,12 @@ def run_tuning(tracker_name):
         for combo in combos:
             params = dict(zip(keys, combo))
             run_id = "_".join(f"{k}{v}" for k, v in params.items())
-            out_dir = OutDir / "tuning" / tracker_name / "stage2" / dataset_name / run_id
-            out_dir.mkdir(parents=True, exist_ok=True)
+            tmp_dir = OutDir / "_tmp" / dataset_name
+            tmp_dir.mkdir(parents=True, exist_ok=True)
 
             avg = evaluate_dataset(dataset_name, tracker_name,
-                                   params, out_dir, best_conf, best_iou)
-            row = {"tracker": tracker_name, "dataset": dataset_name,
+                                   params, tmp_dir, best_conf, best_iou)
+            row = {"tracker_name": tracker_name, "dataset_name": dataset_name,
                    "stage": 2, "run_id": run_id,
                    "conf": best_conf, "iou": best_iou,
                    **params,
@@ -460,10 +460,10 @@ def build_results_table():
                 "ID Switches": int(best["ID Switches"]),
                 "MostlyTracked": round(best["MostlyTracked"], 3),
                 "MostlyLost": round(best["MostlyLost"], 3),
-                "FPS": best.get("FPS", "-"),
-                "Latency mean (ms)": best.get("Latency mean (ms)", "-"),
-                "Latency p95 (ms)": best.get("Latency p95 (ms)", "-"),
-                "Peak VRAM (MB)": best.get("Peak VRAM (MB)", "-"),
+                "FPS": best["FPS"] if "FPS" in best.index else "-",
+                "Latency mean (ms)": best["Latency mean (ms)"] if "Latency mean (ms)" in best.index else "-",
+                "Latency p95 (ms)": best["Latency p95 (ms)"] if "Latency p95 (ms)" in best.index else "-",
+                "Peak VRAM (MB)": best["Peak VRAM (MB)"] if "Peak VRAM (MB)" in best.index else "-",
             })
 
     if not rows:
