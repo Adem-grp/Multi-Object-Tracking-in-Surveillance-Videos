@@ -4,7 +4,7 @@ filelock==3.29.0
 matplotlib==3.10.9
 motmetrics==1.4.0
 numpy==1.26.4
-ocsort==0.0.2
+ocsort
 opencv-python==4.11.0.86
 pandas==2.3.3
 ray==2.55.1

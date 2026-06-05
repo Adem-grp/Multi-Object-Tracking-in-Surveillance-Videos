@@ -27,8 +27,8 @@ except ImportError:
     print("Trackeval not available")
 
 # change this paths for lab computer before running
-DetectorWeights = r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\runs_final\detect\all_datasets\weights\best.pt"
-OutDir = Path(r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\tracker_outputs")
+DetectorWeights = r"D:\runs_final\detect\all_datasets\weights\best.pt"
+OutDir = Path(r"C:\Users\k2549603\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\tracker_outputs")
 
 # ReID is for deepsort it will be downloaded automatically after first run
 ReID_weights = Path("osnet_x0_25_msmt17.pt")
@@ -535,6 +535,7 @@ def build_results_table():
 
 
 if __name__ == "__main__":
+    print(torch.cuda.is_available())
     print("Modes")
     print("1.Baseline Calculate")
     print("2.Tracker Tuning")
