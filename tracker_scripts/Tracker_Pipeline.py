@@ -86,10 +86,10 @@ DATASETS = {
 
 TrackerGrids = {  # will be extended
     "deepsort": {
-        "max_dist": [0.1, 0.2, 0.3],
-        "max_age": [30, 50, 70,100],
+        "max_dist": [0.1, 0.2, 0.3, 0.4,0.5, 0.6],
+        "max_age": [20,30, 50,60, 70,100],
         "n_init": [1, 3, 5],
-        "max_iou_dist": [0.5, 0.7, 0.9],
+        "max_iou_dist": [0.2,0.3,0.5, 0.7, 0.9],
     },
     "bytetrack": {
         "track_high_thresh": [0.4, 0.5, 0.6, 0.7, 0.8],
@@ -106,7 +106,7 @@ TrackerGrids = {  # will be extended
 
 ConfGrid = {
     "bytetrack": [0.01, 0.03, 0.05],
-    "deepsort": [0.3, 0.4, 0.5],
+    "deepsort": [0.3, 0.4, 0.5,0.6],
     "ocsort": [0.2, 0.3, 0.4],
 }
 IouGrid = [0.5, 0.6, 0.7]
