@@ -12,3 +12,5 @@ filelock
 boxmot
 trackeval
 motmetrics
+deep-sort-realtime
+ocsort
