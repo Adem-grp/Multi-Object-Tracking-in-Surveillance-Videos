@@ -15,3 +15,4 @@ ultralytics==8.4.41
 ultralytics-thop==2.0.18
 filterpy==1.4.5
 lapx==0.5.13
+pyyaml

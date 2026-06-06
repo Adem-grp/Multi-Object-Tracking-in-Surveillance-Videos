@@ -86,8 +86,8 @@ DATASETS = {
 
 TrackerGrids = {  # will be extended
     "deepsort": {
-        "max_dist": [0.1, 0.2, 0.3, 0.4,0.5, 0.6],
-        "max_age": [20,30, 50,60, 70,100],
+        "max_dist": [ 0.2, 0.3,0.5, 0.6],
+        "max_age": [20,30, 50, 70,100],
         "n_init": [1, 3, 5],
         "max_iou_dist": [0.2,0.3,0.5, 0.7, 0.9],
     },
