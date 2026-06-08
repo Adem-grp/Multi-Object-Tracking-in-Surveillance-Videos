@@ -26,10 +26,9 @@ except ImportError:
     TRACKEVAL = False
     print("Trackeval not available")
 
-from inspect import signature
 # change this paths for lab computer before running
-DetectorWeights = r"D:\runs_final\detect\all_datasets\weights\best.pt"
-OutDir = Path(r"C:\Users\k2549603\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\tracker_outputs")
+DetectorWeights = r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\runs_final\detect\all_datasets\weights\best.pt"
+OutDir = Path(r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\tracker_outputs")
 
 # ReID is for deepsort it will be downloaded automatically after first run
 ReID_weights = Path("osnet_x0_25_msmt17.pt")
@@ -82,27 +81,25 @@ DATASETS = {
          r"D:\datasets\gmot_yolo\test\bird-3\gt\gt.txt"),
         (r"D:\datasets\gmot_yolo\test\boat-1\img1",
          r"D:\datasets\gmot_yolo\test\boat-1\gt\gt.txt"), ],
-    # turn gmot to video and add its gt as well
 }
 
-TrackerGrids = {  # will be extended
+TrackerGrids = {
     "deepsort": {
         "max_dist": [0.1, 0.2, 0.3],
-        "max_age": [30, 50, 70,100],
+        "max_age": [30, 50, 70, 100],
         "n_init": [1, 3, 5],
         "max_iou_dist": [0.5, 0.7, 0.9],
     },
     "bytetrack": {
-        "track_high_thresh": [0.4, 0.5, 0.6,0.7,0.8],
-        "track_low_thresh": [0.05, 0.1, 0.2],
-        "track_buffer": [20, 30, 40,60],
+        "track_high_thresh": [0.4, 0.5, 0.6, 0.7, 0.8],
+        "track_buffer": [20, 30, 40, 60],
         "match_thresh": [0.7, 0.8, 0.9],
     },
     "ocsort": {
-        "det_thresh": [0.4, 0.5, 0.6,0.7],
-        "max_age": [20, 30, 40, 50,70],
+        "det_thresh": [0.4, 0.5, 0.6, 0.7],
+        "max_age": [20, 30, 40, 50, 70],
         "min_hits": [1, 3],
-        "iou_threshold": [0.2, 0.3, 0.4,0.5,0.6,0.7],
+        "iou_threshold": [0.2, 0.3, 0.4, 0.5, 0.6, 0.7],
     },
 }
 
@@ -113,11 +110,9 @@ ConfGrid = {
 }
 IouGrid = [0.5, 0.6, 0.7]
 
-# Default params per tracker (used in baseline)
 TrackerDefaults = {
     "deepsort": {"max_dist": 0.2, "max_age": 30, "n_init": 3, "max_iou_dist": 0.7},
-    "bytetrack": {"track_high_thresh": 0.5, "track_low_thresh": 0.1,
-                  "track_buffer": 30, "match_thresh": 0.8},
+    "bytetrack": {"track_high_thresh": 0.5, "track_buffer": 30, "match_thresh": 0.8},
     "ocsort": {"det_thresh": 0.5, "max_age": 30, "min_hits": 3, "iou_threshold": 0.3},
 }
 
@@ -127,30 +122,32 @@ OutDir.mkdir(parents=True, exist_ok=True)
 def build_tracker(tracker, params):
     if tracker == "deepsort":
         return DeepSort(
-            max_dist=params["max_dist"],
+            max_cosine_distance=params["max_dist"],
             max_age=params["max_age"],
             n_init=params["n_init"],
             max_iou_distance=params["max_iou_dist"],
+            embedder_gpu=True,
+            half=False,
         )
     elif tracker == "bytetrack":
-        return ByteTrack(
-            track_high_thresh=params["track_high_thresh"],
-            track_low_thresh=params["track_low_thresh"],
-            track_buffer=params["track_buffer"],
+        return BYTETracker(
+            track_thresh=params["track_high_thresh"],
             match_thresh=params["match_thresh"],
+            track_buffer=params["track_buffer"],
+            frame_rate=30,
         )
     elif tracker == "ocsort":
-        return OcSort(
+        return OCSort(
             det_thresh=params["det_thresh"],
             max_age=params["max_age"],
             min_hits=params["min_hits"],
             iou_threshold=params["iou_threshold"],
+            use_byte=False,
         )
     else:
         raise ValueError(f"Tracker {tracker} is not supported.")
 
 
-# run tracker on one sequence
 def tracker_on_sequence(img_folder, tracker_name, tracker_params, output_path, conf, iou):
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -162,8 +159,6 @@ def tracker_on_sequence(img_folder, tracker_name, tracker_params, output_path, c
         raise RuntimeError(f"No frames found in {img_folder}")
     model = YOLO(DetectorWeights)
     tracker = build_tracker(tracker_name, tracker_params)
-    if torch.cuda.is_available():
-        torch.cuda.reset_peak_memory_stats()
     mot_lines = []
     frame_times = []
     total_time = 0.0
@@ -172,6 +167,8 @@ def tracker_on_sequence(img_folder, tracker_name, tracker_params, output_path, c
         if frame is None:
             print(f"Frame {frame_idx} cannot be read.")
             continue
+        if frame_idx == 1 and torch.cuda.is_available():
+            torch.cuda.reset_peak_memory_stats()
         t_start = time.perf_counter()
         results = model.predict(
             frame, conf=conf, iou=iou, imgsz=Imgsz, verbose=False,
@@ -184,15 +181,43 @@ def tracker_on_sequence(img_folder, tracker_name, tracker_params, output_path, c
             for box, det_conf, cls in zip(boxes, confs, clss):
                 dets.append([*box, det_conf, cls])
         dets_np = np.array(dets) if dets else np.empty((0, 6))
-        tracks = tracker.update(dets_np, frame)
+
+        active_tracks = []
+        if tracker_name == "deepsort":
+            ds_dets = []
+            for d in dets_np:
+                x1, y1, x2, y2, c = d[0], d[1], d[2], d[3], d[4]
+                ds_dets.append(([x1, y1, x2 - x1, y2 - y1], c, 0))
+            ds_tracks = tracker.update_tracks(ds_dets, frame=frame)
+            for t in ds_tracks:
+                if not t.is_confirmed():
+                    continue
+                x1, y1, x2, y2 = t.to_ltrb()
+                active_tracks.append((x1, y1, x2, y2, t.track_id, t.get_det_conf() or 1.0))
+        elif tracker_name == "bytetrack":
+            if len(dets_np):
+                bt_dets = dets_np[:, :6]
+            else:
+                bt_dets = np.empty((0, 6))
+            bt_tracks = tracker.update(bt_dets, frame)
+            for t in bt_tracks:
+                x1, y1, x2, y2, tid, conf_t = t[0], t[1], t[2], t[3], int(t[4]), t[5]
+                active_tracks.append((x1, y1, x2, y2, tid, conf_t))
+        elif tracker_name == "ocsort":
+            if len(dets_np):
+                oc_input = torch.from_numpy(dets_np[:, :6].astype(np.float32))
+            else:
+                oc_input = torch.zeros((0, 6))
+            oc_tracks = tracker.update(oc_input, frame)
+            for t in oc_tracks:
+                active_tracks.append((t[0], t[1], t[2], t[3], int(t[4]), t[6]))
+
         t_end = time.perf_counter()
         frame_ms = (t_end - t_start) * 1000
         total_time += (t_end - t_start)
         frame_times.append(frame_ms)
 
-        for track in tracks:
-            x1, y1, x2, y2, tid = track[0], track[1], track[2], track[3], int(track[4])
-            tconf = float(track[5]) if len(track) > 5 else 1.0
+        for x1, y1, x2, y2, tid, tconf in active_tracks:
             w = x2 - x1
             h = y2 - y1
             mot_lines.append(
@@ -201,7 +226,7 @@ def tracker_on_sequence(img_folder, tracker_name, tracker_params, output_path, c
 
     output_path.write_text("\n".join(mot_lines), encoding="utf-8")
     n_frames = len(frame_paths)
-    fps = n_frames / total_time if total_time > 0 else 0.0  # check if this gpu_only fps fix it
+    fps = n_frames / total_time if total_time > 0 else 0.0
     latency_mean = round(float(np.mean(frame_times)), 2)
     latency_p95 = round(float(np.percentile(frame_times, 95)), 2)
     peak_vram = round(torch.cuda.max_memory_allocated() / 1024 / 1024, 1) if torch.cuda.is_available() else 0.0
@@ -216,7 +241,6 @@ def tracker_on_sequence(img_folder, tracker_name, tracker_params, output_path, c
     }
 
 
-# evaluate one sequence
 def load_mot(mot_path):
     path = Path(mot_path)
     if not path.exists() or path.stat().st_size == 0:
@@ -229,7 +253,6 @@ def evaluate_sequence(gt_path, pred_path, iou_threshold=0.5):
     gt_df = load_mot(gt_path)
     pred_df = load_mot(pred_path)
     acc = mm.MOTAccumulator(auto_id=True)
-    #.union removed from all_frames calculation
     all_frames = sorted(set(gt_df["frame"]) | set(pred_df["frame"]))
     for frame in all_frames:
         gt_frame = gt_df[gt_df["frame"] == frame]
@@ -252,14 +275,12 @@ def evaluate_sequence(gt_path, pred_path, iou_threshold=0.5):
         name="eval",
     )
     r = summary.to_dict(orient="records")[0]
-    hota= compute_hota(gt_df, pred_df,iou_threshold=iou_threshold)
+    hota = compute_hota(gt_df, pred_df, iou_threshold=iou_threshold)
     r["mota_pct"] = round(float(r["mota"]) * 100, 2)
     r["idf1_pct"] = round(float(r["idf1"]) * 100, 2)
-    r["hota_pct"] = round(hota,2) if hota is not None else 0.0
+    r["hota_pct"] = round(hota, 2) if hota is not None else 0.0
     return r
 
-
-# evaluate dataset average it across clips as there are multiple clips per dataset
 
 def evaluate_dataset(dataset_name, tracker_name, tracker_params, output_subdir, conf, iou):
     clips = DATASETS[dataset_name]
@@ -274,11 +295,10 @@ def evaluate_dataset(dataset_name, tracker_name, tracker_params, output_subdir, 
         eval_seq = evaluate_sequence(gt_path, str(out_file))
         clip_rows.append(eval_seq)
     avg = {}
-    for k in ["mota_pct", "idf1_pct","hota_pct", "num_switches", "num_misses",
+    for k in ["mota_pct", "idf1_pct", "hota_pct", "num_switches", "num_misses",
               "num_false_positives", "mostly_tracked", "mostly_lost", "num_fragmentations"]:
         vals = [row[k] for row in clip_rows if k in row]
         avg[k] = round(float(np.mean(vals)), 3) if vals else 0.0
-
     avg["fps_mean"] = round(float(np.mean([t["fps"] for t in timing_rows])), 1)
     avg["latency_mean_ms"] = round(float(np.mean([t["latency_mean_ms"] for t in timing_rows])), 2)
     avg["latency_p95_ms"] = round(float(np.mean([t["latency_p95_ms"] for t in timing_rows])), 2)
@@ -314,7 +334,7 @@ def run_baseline():
                 "Peak VRAM (MB)": avg["peak_vram_mb"],
             }
             rows.append(row)
-            print(f"    MOTA:{row['MOTA (%)']}%  IDF1:{row['IDF1 (%)']}%  FPS:{row['FPS']}")
+            print(f"    HOTA:{row['HOTA (%)']}%  MOTA:{row['MOTA (%)']}%  IDF1:{row['IDF1 (%)']}%  FPS:{row['FPS']}")
     df = pd.DataFrame(rows)
     df.to_csv(OutDir / "baseline_results.csv", index=False)
     print(f"\n[DONE] {OutDir / 'baseline_results.csv'}")
@@ -323,28 +343,42 @@ def run_baseline():
 
 def compute_hota(gt_df, pred_df, iou_threshold=0.5):
     hota_metric = HOTA({"THRESHOLD": iou_threshold})
-    data = {
-        "gt_ids": [],
-        "tracker_ids": [],
-        "similarity_scores": [],
-    }
     all_frames = sorted(set(gt_df["frame"]) | set(pred_df["frame"]))
+    all_gt_ids = sorted(gt_df["id"].unique().tolist())
+    all_pred_ids = sorted(pred_df["id"].unique().tolist())
+    gt_id_map = {v: i for i, v in enumerate(all_gt_ids)}
+    pred_id_map = {v: i for i, v in enumerate(all_pred_ids)}
+    gt_ids_list, tracker_ids_list, sim_list = [], [], []
+    num_gt_dets, num_tracker_dets = 0, 0
     for frame in all_frames:
         gt_frame = gt_df[gt_df["frame"] == frame]
         pred_frame = pred_df[pred_df["frame"] == frame]
-        gt_ids = gt_frame["id"].to_numpy()
-        pred_ids = pred_frame["id"].to_numpy()
+        gt_ids = np.array([gt_id_map[i] for i in gt_frame["id"].tolist()], dtype=np.int32)
+        pred_ids = np.array([pred_id_map[i] for i in pred_frame["id"].tolist()], dtype=np.int32)
         gt_boxes = gt_frame[["x", "y", "w", "h"]].to_numpy()
         pred_boxes = pred_frame[["x", "y", "w", "h"]].to_numpy()
         if len(gt_boxes) and len(pred_boxes):
             sim = 1.0 - mm.distances.iou_matrix(gt_boxes, pred_boxes)
         else:
             sim = np.zeros((len(gt_boxes), len(pred_boxes)))
-        data["gt_ids"].append(gt_ids)
-        data["tracker_ids"].append(pred_ids)
-        data["similarity_scores"].append(sim)
+        gt_ids_list.append(gt_ids)
+        tracker_ids_list.append(pred_ids)
+        sim_list.append(sim)
+        num_gt_dets += len(gt_ids)
+        num_tracker_dets += len(pred_ids)
+    data = {
+        "num_timesteps": len(all_frames),
+        "num_gt_dets": num_gt_dets,
+        "num_tracker_dets": num_tracker_dets,
+        "num_gt_ids": len(all_gt_ids),
+        "num_tracker_ids": len(all_pred_ids),
+        "gt_ids": gt_ids_list,
+        "tracker_ids": tracker_ids_list,
+        "similarity_scores": sim_list,
+    }
     res = hota_metric.eval_sequence(data)
-    return float(res["HOTA"])* 100
+    return float(np.mean(res["HOTA"])) * 100
+
 
 def run_tuning(tracker_name):
     print("Tuning")
@@ -357,7 +391,6 @@ def run_tuning(tracker_name):
     if csv_path.exists():
         existing = pd.read_csv(csv_path).to_dict(orient="records")
         all_rows = existing
-        # restore s1_rows from existing stage 1 data for best_conf_iou computation
         s1_rows = [r for r in existing if r.get("stage") == 1]
         print(f"  [Resume] Loaded {len(existing)} existing rows from {csv_path.name}")
     else:
@@ -389,7 +422,7 @@ def run_tuning(tracker_name):
             }
             s1_rows.append(row)
             all_rows.append(row)
-    # find the best conf/iou per dataset based on HOTA — computed after all stage 1 runs complete
+    # find the best conf/iou per dataset based on HOTA
     s1_df = pd.DataFrame(s1_rows)
     best_conf_iou = {}
     for ds in DATASETS:
@@ -402,7 +435,7 @@ def run_tuning(tracker_name):
         print(f"  [Stage 1 best] {ds}: conf={best['conf']} iou={best['iou']} "
               f"IDF1={best['IDF1 (%)']}%, HOTA = {best['HOTA (%)']}")
 
-    print("tracker paramaters eval with best conf and iou")
+    print("tracker parameters eval with best conf and iou")
     grid = TrackerGrids[tracker_name]
     keys = list(grid.keys())
     combos = list(product(*grid.values()))
@@ -416,7 +449,6 @@ def run_tuning(tracker_name):
             run_id = "_".join(f"{k}{v}" for k, v in params.items())
             tmp_dir = OutDir / "_tmp" / dataset_name
             tmp_dir.mkdir(parents=True, exist_ok=True)
-
             avg = evaluate_dataset(dataset_name, tracker_name,
                                    params, tmp_dir, best_conf, best_iou)
             row = {"tracker_name": tracker_name, "dataset_name": dataset_name,
@@ -432,10 +464,8 @@ def run_tuning(tracker_name):
                    "Latency p95 (ms)": avg["latency_p95_ms"],
                    "Peak VRAM (MB)": avg["peak_vram_mb"]}
             all_rows.append(row)
-
             if avg["hota_pct"] > best_hota:
                 best_hota, best_combo = avg["hota_pct"], params
-
             print(f"  Best HOTA: {best_hota}%  Params: {best_combo}")
         # checkpoint after each dataset so progress is never lost on crash or cut-off
         csv_path = OutDir / f"tuning_{tracker_name}.csv"
@@ -475,39 +505,34 @@ def build_results_table():
                 "Latency p95 (ms)": best["Latency p95 (ms)"] if "Latency p95 (ms)" in best.index else "-",
                 "Peak VRAM (MB)": best["Peak VRAM (MB)"] if "Peak VRAM (MB)" in best.index else "-",
             })
-
     if not rows:
         print("[WARN] No tuning results found.")
         return
-
     summary = pd.DataFrame(rows)
     summary.to_csv(OutDir / "results_summary.csv", index=False)
     with open(OutDir / "results_table.txt", "w") as f:
         f.write(summary.to_string(index=False))
-
     print(summary.to_string(index=False))
     print(f"\n[DONE] {OutDir / 'results_summary.csv'}")
-
     print("\n[BEST TRACKER PER DATASET]")
     best_per = summary.loc[summary.groupby("Dataset")["HOTA (%)"].idxmax()]
     print(best_per[["Dataset", "Tracker", "conf", "iou", "MOTA (%)", "IDF1 (%)"]].to_string(index=False))
 
 
 if __name__ == "__main__":
-    print(signature(DeepSort))
     print("Modes")
     print("1.Baseline Calculate")
     print("2.Tracker Tuning")
     print("3. Results Table")
     selection_1 = int(input("Selection(1/2/3: "))
-    print("Choose Tracker")
-    print("1.DeepSort")
-    print("2.ByteTrack")
-    print("3. OCSort")
-    selection_2 = int(input("Selection(1/2/3: "))
     if selection_1 == 1:
         run_baseline()
     if selection_1 == 2:
+        print("Choose Tracker")
+        print("1.DeepSort")
+        print("2.ByteTrack")
+        print("3. OCSort")
+        selection_2 = int(input("Selection(1/2/3: "))
         if selection_2 == 1:
             run_tuning("deepsort")
         elif selection_2 == 2:
