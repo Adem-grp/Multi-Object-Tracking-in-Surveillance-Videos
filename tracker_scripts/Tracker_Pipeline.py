@@ -87,10 +87,10 @@ DATASETS = {
 
 TrackerGrids = {  # will be extended
     "deepsort": {
-        "max_dist": [0.1, 0.2, 0.3,0.5],
+        "max_dist": [0.1, 0.2, 0.3],
         "max_age": [30, 50, 70,100],
         "n_init": [1, 3, 5],
-        "max_iou_dist": [0.3,0.5, 0.7],
+        "max_iou_dist": [0.5, 0.7, 0.9],
     },
     "bytetrack": {
         "track_high_thresh": [0.4, 0.5, 0.6,0.7,0.8],
@@ -357,6 +357,8 @@ def run_tuning(tracker_name):
     if csv_path.exists():
         existing = pd.read_csv(csv_path).to_dict(orient="records")
         all_rows = existing
+        # restore s1_rows from existing stage 1 data for best_conf_iou computation
+        s1_rows = [r for r in existing if r.get("stage") == 1]
         print(f"  [Resume] Loaded {len(existing)} existing rows from {csv_path.name}")
     else:
         all_rows = []
@@ -498,14 +500,14 @@ if __name__ == "__main__":
     print("2.Tracker Tuning")
     print("3. Results Table")
     selection_1 = int(input("Selection(1/2/3: "))
+    print("Choose Tracker")
+    print("1.DeepSort")
+    print("2.ByteTrack")
+    print("3. OCSort")
+    selection_2 = int(input("Selection(1/2/3: "))
     if selection_1 == 1:
         run_baseline()
     if selection_1 == 2:
-        print("Choose Tracker")
-        print("1.DeepSort")
-        print("2.ByteTrack")
-        print("3. OCSort")
-        selection_2 = int(input("Selection(1/2/3: "))
         if selection_2 == 1:
             run_tuning("deepsort")
         elif selection_2 == 2:
