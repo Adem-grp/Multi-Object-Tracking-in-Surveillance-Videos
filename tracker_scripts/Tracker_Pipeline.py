@@ -27,8 +27,8 @@ except ImportError:
     print("Trackeval not available")
 
 # change this paths for lab computer before running
-DetectorWeights = r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\runs_final\detect\all_datasets\weights\best.pt"
-OutDir = Path(r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\tracker_outputs")
+DetectorWeights = r"D:\runs_final\detect\all_datasets\weights\best.pt"
+OutDir = Path(r"C:\Users\k2549603\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\tracker_outputs")
 
 # ReID is for deepsort it will be downloaded automatically after first run
 ReID_weights = Path("osnet_x0_25_msmt17.pt")
@@ -85,7 +85,7 @@ DATASETS = {
 
 TrackerGrids = {
     "deepsort": {
-        "max_dist": [0.1, 0.2, 0.3],
+        "max_dist": [0.1, 0.2, 0.3,0.5],
         "max_age": [30, 50, 70, 100],
         "n_init": [1, 3, 5],
         "max_iou_dist": [0.5, 0.7, 0.9],
@@ -96,8 +96,8 @@ TrackerGrids = {
         "match_thresh": [0.7, 0.8, 0.9],
     },
     "ocsort": {
-        "det_thresh": [0.4, 0.5, 0.6, 0.7],
-        "max_age": [20, 30, 40, 50, 70],
+        "det_thresh": [0.3,0.4, 0.5, 0.6, 0.7],
+        "max_age": [20, 30, 40, 50, 70,100],
         "min_hits": [1, 3],
         "iou_threshold": [0.2, 0.3, 0.4, 0.5, 0.6, 0.7],
     },
