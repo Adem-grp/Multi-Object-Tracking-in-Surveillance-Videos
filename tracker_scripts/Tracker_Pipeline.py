@@ -13,9 +13,9 @@ from pathlib import Path
 
 from trackeval.metrics import HOTA
 from ultralytics import YOLO
-from boxmot import DeepSORT, ByteTrack, OcSort
-
-from OC_SORT.trackers.deepsort_tracker.deepsort import DeepSort
+from boxmot.trackers.bytetrack.byte_tracker import BYTETracker
+from deep_sort_realtime.deepsort_tracker import DeepSort
+from ocsort.ocsort import OCSort
 
 # TrackEval needed for HOTA computation
 try:
