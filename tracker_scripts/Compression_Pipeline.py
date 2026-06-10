@@ -83,7 +83,7 @@ DATASETS = {
     # turn gmot to video and add its gt as well
 }
 
-TrackerGrids = {  # when all combinations are finished just fill with the best tracker and its hyper parameters
+EvalTrackers = {  # when all combinations are finished just fill with the best tracker and its hyper parameters
     "deepsort": {
         "max_dist": [0.2, 0.3, 0.5, 0.6],
         "max_age": [20, 30, 50, 70, 100],
@@ -207,7 +207,6 @@ def quantise_fp16(weights_path, out_path):
 def quantisation_int8(weights_path, out_path):
     yolo = YOLO(str(weights_path))
     model = yolo.model.float().cpu()  # float seems to be deprecated
-    model = float(yolo.model).cpu()  # this might be better but confirm it
     model.eval()
     quantised = torch.quantization.quantize_dynamic(
         model, {torch.nn.Linear},
@@ -309,4 +308,31 @@ def run_compression(epochs):
 
 
 def run_eval(variants, tracker_name):
-    pass
+    cfg = EvalTrackers[tracker_name]
+    tracker_params = cfg["params"]
+    conf, iou = cfg["conf"], cfg["iou"]
+    rows =[]
+    for variant in variants:
+        if not v.get("loadable",True):
+            print(f"\nVariant: {variant['name']} skip int8 state dict needs tensorrt for conv inference\n")
+            rows.append({
+                "variant": variant["name"],
+                "sparsity": variant["sparsity"],
+                "quantisation": variant["quantisation"],
+                "tracker" : tracker_name,
+                "dataset": "N/A",
+                "note": "INT8 skipped use Tensor RT for full Conv int8 inference",
+                **{k: None for k in ["HOTA (%)", "MOTA (%)", "IDF1 (%)","FPS","latency mean (ms)", "Peak VRAM ( MB)"]},
+            })
+            continue
+        wp = variant.get("weights_path")
+        if wp is None or not Path(str(wp)).exists():
+            print(f"\nVariant: {variant['name']} weights not found\n")
+            continue
+        print(f" Evaluating {variant['name']}\n tracker: {tracker_name}")
+        for dataset_name in DATASETS:
+            print(f" Dataset: {dataset_name}\n")
+            tmp_dir = CompressDir / "_tmp" / dataset_name
+            tmp_dir.mkdir(exist_ok=True, parents=True)
+            avg = evaluate_dataset(dataset_name,wp,tracker_name,tracker_params,tmp_dir,conf,iou) # rewrite this and tracker_on_sequence
+
