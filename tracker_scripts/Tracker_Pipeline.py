@@ -28,14 +28,19 @@ except ImportError:
 
 # change this paths for lab computer before running
 DetectorWeights = r"D:\runs_final\detect\all_datasets\weights\best.pt"
-OutDir = Path(r"C:\Users\k2549603\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\tracker_outputs")
+OutDir = Path(r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\tracker_outputs")
 
 # ReID is for deepsort it will be downloaded automatically after first run
 ReID_weights = Path("osnet_x0_25_msmt17.pt")
 Imgsz = 640
 Def_conf = 0.01
 Def_iou = 0.6
-
+Byte_conf= 0.01
+Byte_iou = 0.5
+Deep_conf= 0.3
+Deep_iou = 0.5
+OC_conf = 0.2
+OC_iou = 0.5
 # Datasets since there are multiple videos per dataset it is important to arrange the ground truths and video paths
 # change these paaths after putting the datasets folder to the hard drive
 DATASETS = {
@@ -111,10 +116,21 @@ ConfGrid = {
 IouGrid = [0.5, 0.6, 0.7]
 
 TrackerDefaults = {
+    #"deepsort": {"max_dist": 0.1, "max_age": 30, "n_init": 3, "max_iou_dist": 0.9},
+    #"bytetrack": {"track_high_thresh": 0.4, "track_buffer": 20, "match_thresh": 0.8},
+    "ocsort": {"det_thresh": 0.3, "max_age": 20, "min_hits": 1, "iou_threshold": 0.6},
+}
+
+"""
+baseline values
+TrackerDefaults = {
     "deepsort": {"max_dist": 0.2, "max_age": 30, "n_init": 3, "max_iou_dist": 0.7},
     "bytetrack": {"track_high_thresh": 0.5, "track_buffer": 30, "match_thresh": 0.8},
     "ocsort": {"det_thresh": 0.5, "max_age": 30, "min_hits": 3, "iou_threshold": 0.3},
 }
+
+
+"""
 
 OutDir.mkdir(parents=True, exist_ok=True)
 
@@ -320,8 +336,8 @@ def run_baseline():
             row = {
                 "tracker_name": tracker_name,
                 "dataset_name": dataset_name,
-                "conf": Def_conf,
-                "iou": Def_iou,
+                "conf": OC_conf,
+                "iou": OC_iou,
                 "HOTA (%)": avg["hota_pct"],
                 "MOTA (%)": avg["mota_pct"],
                 "IDF1 (%)": avg["idf1_pct"],
@@ -336,8 +352,7 @@ def run_baseline():
             rows.append(row)
             print(f"    HOTA:{row['HOTA (%)']}%  MOTA:{row['MOTA (%)']}%  IDF1:{row['IDF1 (%)']}%  FPS:{row['FPS']}")
     df = pd.DataFrame(rows)
-    df.to_csv(OutDir / "baseline_results.csv", index=False)
-    print(f"\n[DONE] {OutDir / 'baseline_results.csv'}")
+    df.to_csv(OutDir / f"final_results_ocsort.csv", index=False)
     print(df.to_string(index=False))
 
 

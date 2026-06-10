@@ -1,0 +1,5 @@
+tracker_name,dataset_name,conf,iou,HOTA (%),MOTA (%),IDF1 (%),ID Switches,MostlyTracked,MostlyLost,FPS,Latency mean (ms),Latency 95 (ms),Peak VRAM (MB)
+bytetrack,avenue,0.01,0.5,58.72,76.94,72.62,5.0,57.0,7.0,90.0,11.12,13.24,157.3
+bytetrack,UCSD,0.01,0.5,45.708,46.87,62.832,4.333,10.833,14.667,86.6,11.58,17.05,524.6
+bytetrack,shanghai,0.01,0.5,57.347,65.593,77.03,3.333,8.333,4.667,94.9,10.55,13.54,275.8
+bytetrack,gmot,0.01,0.5,19.424,19.712,25.765,34.5,4.25,31.25,82.2,12.28,15.51,678.2
