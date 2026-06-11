@@ -114,15 +114,15 @@ ConfGrid = {
     "ocsort": [0.2, 0.3, 0.4],
 }
 IouGrid = [0.5, 0.6, 0.7]
-
+"""
 TrackerDefaults = {
     #"deepsort": {"max_dist": 0.1, "max_age": 30, "n_init": 3, "max_iou_dist": 0.9},
     #"bytetrack": {"track_high_thresh": 0.4, "track_buffer": 20, "match_thresh": 0.8},
-    "ocsort": {"det_thresh": 0.3, "max_age": 20, "min_hits": 1, "iou_threshold": 0.6},
+    #"ocsort": {"det_thresh": 0.3, "max_age": 20, "min_hits": 1, "iou_threshold": 0.6},
 }
 
 """
-baseline values
+#baseline values
 TrackerDefaults = {
     "deepsort": {"max_dist": 0.2, "max_age": 30, "n_init": 3, "max_iou_dist": 0.7},
     "bytetrack": {"track_high_thresh": 0.5, "track_buffer": 30, "match_thresh": 0.8},
@@ -130,7 +130,7 @@ TrackerDefaults = {
 }
 
 
-"""
+
 
 OutDir.mkdir(parents=True, exist_ok=True)
 
@@ -332,12 +332,12 @@ def run_baseline():
             print(f" Dataset {dataset_name}")
             tmp_dir = OutDir / "_tmp" / dataset_name
             tmp_dir.mkdir(parents=True, exist_ok=True)
-            avg = evaluate_dataset(dataset_name, tracker_name, default_params, tmp_dir, Def_conf, Def_iou)
+            avg = evaluate_dataset(dataset_name, tracker_name, default_params, tmp_dir, Deep_conf, Deep_iou)
             row = {
                 "tracker_name": tracker_name,
                 "dataset_name": dataset_name,
-                "conf": OC_conf,
-                "iou": OC_iou,
+                "conf": Deep_conf,
+                "iou": Deep_iou,
                 "HOTA (%)": avg["hota_pct"],
                 "MOTA (%)": avg["mota_pct"],
                 "IDF1 (%)": avg["idf1_pct"],
@@ -352,7 +352,7 @@ def run_baseline():
             rows.append(row)
             print(f"    HOTA:{row['HOTA (%)']}%  MOTA:{row['MOTA (%)']}%  IDF1:{row['IDF1 (%)']}%  FPS:{row['FPS']}")
     df = pd.DataFrame(rows)
-    df.to_csv(OutDir / f"final_results_ocsort.csv", index=False)
+    df.to_csv(OutDir / f"final_results_deepsort.csv", index=False)
     print(df.to_string(index=False))
 
 
