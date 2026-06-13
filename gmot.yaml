@@ -12,6 +12,7 @@ val:
 test:
   - datasets/gmot_yolo/test/images
 
+
 # unified class set (add 'bridge' at index 10)
 nc: 10
 names:

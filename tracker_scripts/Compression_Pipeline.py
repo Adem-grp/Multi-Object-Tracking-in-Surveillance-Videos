@@ -6,7 +6,7 @@
 import os
 import time
 import shutil
-import yaml                              # for writing the training data yaml
+import yaml  # for writing the training data yaml
 import cv2
 import torch
 import torch.nn.utils.prune as torch_prune  # PyTorch's built-in pruning utilities
@@ -25,15 +25,15 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # use first GPU only
 # ---------------------------------------------------------------------------
 # Paths
 # ---------------------------------------------------------------------------
-DetectorWeights = r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\runs_final\detect\all_datasets\weights\best.pt"
-TrainRunDir     = r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\runs_final\detect\all_datasets"  # folder of the original training run, used to find the yaml
-OutDir          = Path(r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\tracker_outputs")
-CompressDir     = OutDir / "compression"   # all compression outputs go here
-Imgsz           = 640
-DEVICE          = 0
+DetectorWeights = r"D:\runs_final\detect\all_datasets\weights\best.pt"
+TrainRunDir = r"D:\runs_final\detect\all_datasets"  # folder of the original training run, used to find the yaml
+OutDir = Path(r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\tracker_outputs")
+CompressDir = OutDir / "compression"  # all compression outputs go here
+Imgsz = 640
+DEVICE = 0
 
 # path where the training yaml will be written or found — used for fine-tuning after pruning
-TrainDataYaml = str(CompressDir / "train_combined.yaml")
+TrainDataYaml = r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\gmot.yaml"
 
 # sparsity levels to test — 0.2 removes 20% of filters, 0.4 removes 40%, etc.
 PruneLevels = [0.2, 0.4, 0.6]
@@ -43,68 +43,56 @@ PruneLevels = [0.2, 0.4, 0.6]
 # ---------------------------------------------------------------------------
 DATASETS = {
     "avenue": [
-        (r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\avenue_yolo\test\img1",
-         r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\avenue_yolo\test\gt\gt.txt"),
-    ],
+        (r"D:\datasets\avenue_yolo\test\img1",
+         r"D:\datasets\avenue_yolo\test\gt\gt.txt"), ],
     "UCSD": [
-        (r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\ucsd_yolo\test\ped1_test1\img1",
-         r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\ucsd_yolo\test\ped1_test1\gt\gt.txt"),
-        (r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\ucsd_yolo\test\ped1_test2\img1",
-         r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\ucsd_yolo\test\ped1_test2\gt\gt.txt"),
-        (r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\ucsd_yolo\test\ped1_test3\img1",
-         r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\ucsd_yolo\test\ped1_test3\gt\gt.txt"),
-        (r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\ucsd_yolo\test\ped2_test1\img1",
-         r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\ucsd_yolo\test\ped2_test1\gt\gt.txt"),
-        (r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\ucsd_yolo\test\ped2_test2\img1",
-         r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\ucsd_yolo\test\ped2_test2\gt\gt.txt"),
-        (r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\ucsd_yolo\test\ped2_test3\img1",
-         r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\ucsd_yolo\test\ped2_test3\gt\gt.txt"),
+        (r"D:\datasets\ucsd_yolo\test\ped1_test1\img1",
+         r"D:\datasets\ucsd_yolo\test\ped1_test1\gt\gt.txt"),
+        (r"D:\datasets\ucsd_yolo\test\ped1_test2\img1",
+         r"D:\datasets\ucsd_yolo\test\ped1_test2\gt\gt.txt"),
+        (r"D:\datasets\ucsd_yolo\test\ped1_test3\img1",
+         r"D:\datasets\ucsd_yolo\test\ped1_test3\gt\gt.txt"),
+        (r"D:\datasets\ucsd_yolo\test\ped2_test1\img1",
+         r"D:\datasets\ucsd_yolo\test\ped2_test1\gt\gt.txt"),
+        (r"D:\datasets\ucsd_yolo\test\ped2_test2\img1",
+         r"D:\datasets\ucsd_yolo\test\ped2_test2\gt\gt.txt"),
+        (r"D:\datasets\ucsd_yolo\test\ped2_test3\img1",
+         r"D:\datasets\ucsd_yolo\test\ped2_test3\gt\gt.txt"),
     ],
     "shanghai": [
-        (r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\shanghaitech_yolo\test\shanghai_10\img1",
-         r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\shanghaitech_yolo\test\shanghai_10\gt\gt.txt"),
-        (r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\shanghaitech_yolo\test\shanghai_128\img1",
-         r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\shanghaitech_yolo\test\shanghai_128\gt\gt.txt"),
-        (r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\shanghaitech_yolo\test\shanghai_164\img1",
-         r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\shanghaitech_yolo\test\shanghai_164\gt\gt.txt"),
+        (r"D:\datasets\shanghaitech_yolo\test\shanghai_10\img1",
+         r"D:\datasets\shanghaitech_yolo\test\shanghai_10\gt\gt.txt"),
+        (r"D:\datasets\shanghaitech_yolo\test\shanghai_128\img1",
+         r"D:\datasets\shanghaitech_yolo\test\shanghai_128\gt\gt.txt"),
+        (r"D:\datasets\shanghaitech_yolo\test\shanghai_164\img1",
+         r"D:\datasets\shanghaitech_yolo\test\shanghai_164\gt\gt.txt"),
     ],
     "gmot": [
-        (r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\gmot_yolo\test\airplane-1\img1",
-         r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\gmot_yolo\test\airplane-1\gt\gt.txt"),
-        (r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\gmot_yolo\test\ball-1\img1",
-         r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\gmot_yolo\test\ball-1\gt\gt.txt"),
-        (r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\gmot_yolo\test\ball-2\img1",
-         r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\gmot_yolo\test\ball-2\gt\gt.txt"),
-        (r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\gmot_yolo\test\ball-3\img1",
-         r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\gmot_yolo\test\ball-3\gt\gt.txt"),
-        (r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\gmot_yolo\test\balloon-0\img1",
-         r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\gmot_yolo\test\balloon-0\gt\gt.txt"),
-        (r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\gmot_yolo\test\bird-2\img1",
-         r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\gmot_yolo\test\bird-2\gt\gt.txt"),
-        (r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\gmot_yolo\test\bird-3\img1",
-         r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\gmot_yolo\test\bird-3\gt\gt.txt"),
-        (r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\gmot_yolo\test\boat-1\img1",
-         r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\gmot_yolo\test\boat-1\gt\gt.txt"),
-    ],
+        (r"D:\datasets\gmot_yolo\test\airplane-1\img1",
+         r"D:\datasets\gmot_yolo\test\airplane-1\gt\gt.txt"),
+        (r"D:\datasets\gmot_yolo\test\ball-1\img1",
+         r"D:\datasets\gmot_yolo\test\ball-1\gt\gt.txt"),
+        (r"D:\datasets\gmot_yolo\test\ball-2\img1",
+         r"D:\datasets\gmot_yolo\test\ball-2\gt\gt.txt"),
+        (r"D:\datasets\gmot_yolo\test\ball-3\img1",
+         r"D:\datasets\gmot_yolo\test\ball-3\gt\gt.txt"),
+        (r"D:\datasets\gmot_yolo\test\balloon-0\img1",
+         r"D:\datasets\gmot_yolo\test\balloon-0\gt\gt.txt"),
+        (r"D:\datasets\gmot_yolo\test\bird-2\img1",
+         r"D:\datasets\gmot_yolo\test\bird-2\gt\gt.txt"),
+        (r"D:\datasets\gmot_yolo\test\bird-3\img1",
+         r"D:\datasets\gmot_yolo\test\bird-3\gt\gt.txt"),
+        (r"D:\datasets\gmot_yolo\test\boat-1\img1",
+         r"D:\datasets\gmot_yolo\test\boat-1\gt\gt.txt"), ],
 }
 
 # best tracker params found from Tracker_Pipeline tuning — update these before running evaluation
 # conf and iou are the best values found in stage 1 of tuning for each tracker
 EvalTrackers = {
     "bytetrack": {
-        "params": {"track_high_thresh": 0.6, "track_buffer": 20, "match_thresh": 0.8},
+        "params": {"track_high_thresh": 0.4, "track_buffer": 20, "match_thresh": 0.8},
         "conf": 0.01,
-        "iou":  0.6,
-    },
-    "ocsort": {
-        "params": {"det_thresh": 0.5, "max_age": 30, "min_hits": 3, "iou_threshold": 0.3},
-        "conf": 0.2,
-        "iou":  0.6,
-    },
-    "deepsort": {
-        "params": {"max_dist": 0.2, "max_age": 30, "n_init": 3, "max_iou_dist": 0.7},
-        "conf": 0.3,
-        "iou":  0.6,
+        "iou": 0.5,
     },
 }
 
@@ -136,9 +124,9 @@ def build_train_yaml():
         if not d.is_dir():
             continue
         ti = d / "train" / "images"
-        vi = d / "val"   / "images"
+        vi = d / "val" / "images"
         if ti.exists(): train_imgs.append(str(ti))  # collect all training image folders
-        if vi.exists(): val_imgs.append(str(vi))    # collect all validation image folders
+        if vi.exists(): val_imgs.append(str(vi))  # collect all validation image folders
     with open(yaml_out, "w") as f:
         # write the yaml — nc and names must match your actual training setup
         yaml.dump({"path": str(datasets_dir), "train": train_imgs,
@@ -153,7 +141,7 @@ def build_train_yaml():
 def get_prunable_convs(nn_model):
     prunable = []
     for name, module in nn_model.named_modules():  # walk every layer in the network
-        if isinstance(module, torch.nn.Conv2d):    # only conv layers are prunable
+        if isinstance(module, torch.nn.Conv2d):  # only conv layers are prunable
             # skip detection head output convs — cv3 and dfl produce the final predictions
             # removing filters from them would change the output shape and break the model
             if "cv3" not in name and "dfl" not in name:
@@ -164,9 +152,9 @@ def get_prunable_convs(nn_model):
 def apply_structured_pruning(nn_model, sparsity: float):
     prunable = get_prunable_convs(nn_model)  # get all layers safe to prune
     for name, module in prunable:
-        n_filters = module.weight.shape[0]   # total number of output filters in this layer
+        n_filters = module.weight.shape[0]  # total number of output filters in this layer
         # compute how many filters to remove — at least 1, at most all-but-1
-        n_prune   = min(max(1, int(n_filters * sparsity)), n_filters - 1)
+        n_prune = min(max(1, int(n_filters * sparsity)), n_filters - 1)
         # ln_structured: score each filter by L1 norm (sum of absolute weight values)
         # remove the n_prune lowest-scoring filters along dimension 0 (output channels)
         torch_prune.ln_structured(module, name="weight", amount=n_prune, n=1, dim=0)
@@ -175,9 +163,9 @@ def apply_structured_pruning(nn_model, sparsity: float):
         torch_prune.remove(module, "weight")
     # count non-zero params across the whole network to show real achieved sparsity
     nonzero = sum(p.nonzero().shape[0] for p in nn_model.parameters())
-    total   = sum(p.numel() for p in nn_model.parameters())
+    total = sum(p.numel() for p in nn_model.parameters())
     print(f"  Pruned {len(prunable)} layers | sparsity={sparsity:.0%} | "
-          f"non-zero: {nonzero:,}/{total:,} ({nonzero/total:.1%})")
+          f"non-zero: {nonzero:,}/{total:,} ({nonzero / total:.1%})")
     return nn_model
 
 
@@ -188,21 +176,22 @@ def finetune(weights_path: Path, out_dir: Path, epochs: int):
     print(f"  Fine-tuning for {epochs} epochs ...")
     model = YOLO(str(weights_path))  # load the pruned weights
     results = model.train(
-        data=TrainDataYaml,          # silver-labeled + GMOT training data
-        epochs=epochs,               # configurable — default 15
+        data=TrainDataYaml,  # silver-labeled + GMOT training data
+        epochs=epochs,  # configurable — default 15
         imgsz=Imgsz,
         batch=16,
+        workers=0,
         device=DEVICE,
-        project=str(out_dir),        # save fine-tune run inside the variant's folder
+        project=str(out_dir),  # save fine-tune run inside the variant's folder
         name="finetune",
-        exist_ok=True,               # overwrite if already exists
+        exist_ok=True,  # overwrite if already exists
         verbose=False,
-        lr0=1e-4,                    # very low starting lr — recovering accuracy, not retraining
-        lrf=1e-5,                    # final lr — decays from lr0 to lrf over the epochs
-        warmup_epochs=1,             # 1 epoch warmup before full lr kicks in
-        mosaic=0.5,                  # moderate augmentation — 0.5 means 50% of batches use mosaic
-        mixup=0.0,                   # no mixup — too aggressive for recovery fine-tuning
-        patience=5,                  # stop early if val loss doesn't improve for 5 epochs
+        lr0=1e-4,  # very low starting lr — recovering accuracy, not retraining
+        lrf=1e-5,  # final lr — decays from lr0 to lrf over the epochs
+        warmup_epochs=1,  # 1 epoch warmup before full lr kicks in
+        mosaic=0.5,  # moderate augmentation — 0.5 means 50% of batches use mosaic
+        mixup=0.0,  # no mixup — too aggressive for recovery fine-tuning
+        patience=5,  # stop early if val loss doesn't improve for 5 epochs
     )
     # model.trainer.best points directly to best.pt saved during training
     best = Path(model.trainer.best)
@@ -220,9 +209,9 @@ def quantise_fp16(weights_path: Path, out_path: Path):
     model = YOLO(str(weights_path))
     # export to TorchScript with half=True — Ultralytics converts all weights to FP16
     # TorchScript format serialises the model so it can be loaded without the class definition
-    model.export(format="torchscript", imgsz=Imgsz, half=True, device=DEVICE) # make sure it is pt
+    model.export(format="torchscript", imgsz=Imgsz, half=True, device=DEVICE)  # make sure it is pt
     # Ultralytics saves the exported file next to the weights file with .torchscript extension
-    exported = weights_path.parent / (weights_path.stem + ".torchscript") # make sure it is pt not torchscript
+    exported = weights_path.parent / (weights_path.stem + ".torchscript")  # make sure it is pt not torchscript
     if exported.exists():
         shutil.copy(exported, out_path)  # copy to the variant's output folder
         print(f"  FP16 saved: {out_path}")
@@ -235,7 +224,7 @@ def quantise_fp16(weights_path: Path, out_path: Path):
 
 def quantise_int8(weights_path: Path, out_path: Path):
     print("  Applying INT8 quantisation ...")
-    yolo  = YOLO(str(weights_path))
+    yolo = YOLO(str(weights_path))
     model = yolo.model.float().cpu()  # get the raw nn.Module, convert to FP32, move to CPU
     # quantisation must happen on CPU — PyTorch's quantisation backend doesn't support CUDA
     # .float() ensures we start from FP32 not FP16, since scale factors need FP32 precision
@@ -297,15 +286,15 @@ def build_variants(epochs: int):
 # ---------------------------------------------------------------------------
 def run_compression(epochs: int):
     CompressDir.mkdir(parents=True, exist_ok=True)
-    build_train_yaml()               # ensure training yaml exists before fine-tuning
+    build_train_yaml()  # ensure training yaml exists before fine-tuning
     variants = build_variants(epochs)  # get the full list of variants to produce
 
     for v in variants:
-        vdir      = CompressDir / v["name"]   # each variant gets its own subfolder
+        vdir = CompressDir / v["name"]  # each variant gets its own subfolder
         vdir.mkdir(parents=True, exist_ok=True)
-        pruned_pt = vdir / "pruned.pt"        # intermediate: pruned weights before fine-tune
-        ft_pt     = vdir / "finetuned.pt"     # intermediate: fine-tuned weights
-        final_pt  = vdir / "model.pt"         # final output: what evaluation loads
+        pruned_pt = vdir / "pruned.pt"  # intermediate: pruned weights before fine-tune
+        ft_pt = vdir / "finetuned.pt"  # intermediate: fine-tuned weights
+        final_pt = vdir / "model.pt"  # final output: what evaluation loads
         print(f"\n[Variant] {v['name']}")
 
         # baseline is special — just copy the original weights, no processing needed
@@ -322,9 +311,9 @@ def run_compression(epochs: int):
             if pruned_pt.exists():  # skip if already done from a previous run
                 print("  Pruned weights exist, skipping.")
             else:
-                yolo = YOLO(str(working))                            # load original model
+                yolo = YOLO(str(working))  # load original model
                 yolo.model = apply_structured_pruning(yolo.model, v["sparsity"])  # prune in place
-                yolo.save(str(pruned_pt))                            # save pruned weights
+                yolo.save(str(pruned_pt))  # save pruned weights
                 print(f"  Pruned saved: {pruned_pt}")
             working = pruned_pt  # next step works from pruned weights
 
@@ -334,7 +323,7 @@ def run_compression(epochs: int):
                 print("  Fine-tuned weights exist, skipping.")
             else:
                 best_ft = finetune(working, vdir, epochs)  # run fine-tuning
-                shutil.copy(best_ft, ft_pt)                # copy best checkpoint to ft_pt
+                shutil.copy(best_ft, ft_pt)  # copy best checkpoint to ft_pt
             working = ft_pt  # next step works from fine-tuned weights
 
         # --- quantisation step ---
@@ -399,7 +388,7 @@ def tracker_on_sequence(img_folder, weights_path, tracker_name, tracker_params,
     if not frame_paths:
         raise RuntimeError(f"No frames in {img_folder}")
 
-    model   = YOLO(str(weights_path))  # load the compressed model for this variant
+    model = YOLO(str(weights_path))  # load the compressed model for this variant
     tracker = build_tracker(tracker_name, tracker_params)
     mot_lines, frame_times, total_time = [], [], 0.0
 
@@ -417,18 +406,18 @@ def tracker_on_sequence(img_folder, weights_path, tracker_name, tracker_params,
         # extract detections from YOLO results into a flat list
         dets = []
         if results[0].boxes is not None and len(results[0].boxes):
-            boxes = results[0].boxes.xyxy.cpu().numpy()   # [x1,y1,x2,y2]
-            confs = results[0].boxes.conf.cpu().numpy()   # confidence scores
-            clss  = results[0].boxes.cls.cpu().numpy()    # class indices
+            boxes = results[0].boxes.xyxy.cpu().numpy()  # [x1,y1,x2,y2]
+            confs = results[0].boxes.conf.cpu().numpy()  # confidence scores
+            clss = results[0].boxes.cls.cpu().numpy()  # class indices
             for box, dc, cls in zip(boxes, confs, clss):
-                dets.append([*box, dc, cls])              # combine into [x1,y1,x2,y2,conf,cls]
+                dets.append([*box, dc, cls])  # combine into [x1,y1,x2,y2,conf,cls]
         dets_np = np.array(dets) if dets else np.empty((0, 6))
 
         # each tracker has a different update interface — handle separately
         active_tracks = []
         if tracker_name == "deepsort":
             # deep_sort_realtime expects list of ([x1,y1,w,h], conf, cls_id)
-            ds_dets = [([d[0], d[1], d[2]-d[0], d[3]-d[1]], d[4], 0) for d in dets_np]
+            ds_dets = [([d[0], d[1], d[2] - d[0], d[3] - d[1]], d[4], 0) for d in dets_np]
             for t in tracker.update_tracks(ds_dets, frame=frame):
                 if t.is_confirmed():  # only output confirmed tracks, not tentative ones
                     x1, y1, x2, y2 = t.to_ltrb()  # get bounding box in xyxy format
@@ -452,13 +441,13 @@ def tracker_on_sequence(img_folder, weights_path, tracker_name, tracker_params,
 
         # write each active track as a MOT1.1 format line
         for x1, y1, x2, y2, tid, tc in active_tracks:
-            mot_lines.append(f"{frame_idx},{tid},{x1:.2f},{y1:.2f},{x2-x1:.2f},{y2-y1:.2f},{tc:.4f},-1,-1,-1")
+            mot_lines.append(f"{frame_idx},{tid},{x1:.2f},{y1:.2f},{x2 - x1:.2f},{y2 - y1:.2f},{tc:.4f},-1,-1,-1")
 
     output_path.write_text("\n".join(mot_lines), encoding="utf-8")
     n = len(frame_paths)
-    fps  = n / total_time if total_time > 0 else 0.0
-    lm   = round(float(np.mean(frame_times)), 2)        # mean latency per frame in ms
-    lp   = round(float(np.percentile(frame_times, 95)), 2)  # 95th percentile latency
+    fps = n / total_time if total_time > 0 else 0.0
+    lm = round(float(np.mean(frame_times)), 2)  # mean latency per frame in ms
+    lp = round(float(np.percentile(frame_times, 95)), 2)  # 95th percentile latency
     vram = round(torch.cuda.max_memory_allocated() / 1024 / 1024, 1) if torch.cuda.is_available() else 0.0
     print(f"  {Path(img_folder).parent.name}/{Path(img_folder).name} | {n}f | "
           f"{fps:.1f} FPS | lat {lm:.1f}ms | VRAM {vram}MB")
@@ -479,46 +468,49 @@ def load_mot(mot_path):
 
 
 def compute_hota(gt_df, pred_df, iou_threshold=0.5):
-    hota_metric  = HOTA({"THRESHOLD": iou_threshold})
-    all_frames   = sorted(set(gt_df["frame"]) | set(pred_df["frame"]))
-    all_gt_ids   = sorted(gt_df["id"].unique().tolist())
+    hota_metric = HOTA({"THRESHOLD": iou_threshold})
+    all_frames = sorted(set(gt_df["frame"]) | set(pred_df["frame"]))
+    all_gt_ids = sorted(gt_df["id"].unique().tolist())
     all_pred_ids = sorted(pred_df["id"].unique().tolist())
     # remap IDs to 0-based — trackeval uses IDs as array indices internally
-    gt_id_map    = {v: i for i, v in enumerate(all_gt_ids)}
-    pred_id_map  = {v: i for i, v in enumerate(all_pred_ids)}
+    gt_id_map = {v: i for i, v in enumerate(all_gt_ids)}
+    pred_id_map = {v: i for i, v in enumerate(all_pred_ids)}
     gt_ids_l, pred_ids_l, sim_l = [], [], []
     num_gt, num_pred = 0, 0
     for frame in all_frames:
         gf = gt_df[gt_df["frame"] == frame]
         pf = pred_df[pred_df["frame"] == frame]
         # remap each ID to its 0-based index
-        gi = np.array([gt_id_map[i]   for i in gf["id"].tolist()], dtype=np.int32)
+        gi = np.array([gt_id_map[i] for i in gf["id"].tolist()], dtype=np.int32)
         pi = np.array([pred_id_map[i] for i in pf["id"].tolist()], dtype=np.int32)
         gb = gf[["x", "y", "w", "h"]].to_numpy()
         pb = pf[["x", "y", "w", "h"]].to_numpy()
         # compute IoU similarity matrix — 1 - distance because iou_matrix returns distance
         sim = 1.0 - mm.distances.iou_matrix(gb, pb) if len(gb) and len(pb) \
-              else np.zeros((len(gb), len(pb)))
-        gt_ids_l.append(gi); pred_ids_l.append(pi); sim_l.append(sim)
-        num_gt += len(gi); num_pred += len(pi)
+            else np.zeros((len(gb), len(pb)))
+        gt_ids_l.append(gi);
+        pred_ids_l.append(pi);
+        sim_l.append(sim)
+        num_gt += len(gi);
+        num_pred += len(pi)
     res = hota_metric.eval_sequence({
-        "num_timesteps":     len(all_frames),    # total frames in the sequence
-        "num_gt_dets":       num_gt,             # total GT detections across all frames
-        "num_tracker_dets":  num_pred,           # total predicted detections
-        "num_gt_ids":        len(all_gt_ids),    # unique GT track IDs
-        "num_tracker_ids":   len(all_pred_ids),  # unique predicted track IDs
-        "gt_ids":            gt_ids_l,           # per-frame GT ID arrays
-        "tracker_ids":       pred_ids_l,         # per-frame predicted ID arrays
-        "similarity_scores": sim_l,              # per-frame IoU similarity matrices
+        "num_timesteps": len(all_frames),  # total frames in the sequence
+        "num_gt_dets": num_gt,  # total GT detections across all frames
+        "num_tracker_dets": num_pred,  # total predicted detections
+        "num_gt_ids": len(all_gt_ids),  # unique GT track IDs
+        "num_tracker_ids": len(all_pred_ids),  # unique predicted track IDs
+        "gt_ids": gt_ids_l,  # per-frame GT ID arrays
+        "tracker_ids": pred_ids_l,  # per-frame predicted ID arrays
+        "similarity_scores": sim_l,  # per-frame IoU similarity matrices
     })
     # res["HOTA"] is an array of scores at different IoU thresholds — take the mean
     return float(np.mean(res["HOTA"])) * 100
 
 
 def evaluate_sequence(gt_path, pred_path, iou_threshold=0.5):
-    gt_df   = load_mot(gt_path)
+    gt_df = load_mot(gt_path)
     pred_df = load_mot(pred_path)
-    acc     = mm.MOTAccumulator(auto_id=True)  # accumulates frame-by-frame matching results
+    acc = mm.MOTAccumulator(auto_id=True)  # accumulates frame-by-frame matching results
     for frame in sorted(set(gt_df["frame"]) | set(pred_df["frame"])):
         gf = gt_df[gt_df["frame"] == frame]
         pf = pred_df[pred_df["frame"] == frame]
@@ -526,12 +518,12 @@ def evaluate_sequence(gt_path, pred_path, iou_threshold=0.5):
         pb = pf[["x", "y", "w", "h"]].values.tolist()
         # max_iou=1-threshold means detections further than threshold IoU distance are not matched
         dist = mm.distances.iou_matrix(gb, pb, max_iou=1 - iou_threshold) \
-               if gb and pb else np.empty((len(gb), len(pb)))
+            if gb and pb else np.empty((len(gb), len(pb)))
         acc.update(gf["id"].tolist(), pf["id"].tolist(), dist)  # update accumulator for this frame
-    mh  = mm.metrics.create()
-    s   = mh.compute(acc, metrics=["mota", "idf1", "num_switches",
-                                    "mostly_tracked", "mostly_lost"], name="e")
-    r   = s.to_dict(orient="records")[0]  # convert summary DataFrame to a single dict
+    mh = mm.metrics.create()
+    s = mh.compute(acc, metrics=["mota", "idf1", "num_switches",
+                                 "mostly_tracked", "mostly_lost"], name="e")
+    r = s.to_dict(orient="records")[0]  # convert summary DataFrame to a single dict
     r["mota_pct"] = round(float(r["mota"]) * 100, 2)  # convert 0-1 to percentage
     r["idf1_pct"] = round(float(r["idf1"]) * 100, 2)
     r["hota_pct"] = round(compute_hota(gt_df, pred_df, iou_threshold), 2)
@@ -545,7 +537,7 @@ def evaluate_dataset(dataset_name, weights_path, tracker_name, tracker_params,
     for i, (img_folder, gt_path) in enumerate(clips):
         seq_name = Path(img_folder).parent.name  # e.g. "ped1_test1"
         out_file = tmp_dir / f"{seq_name}_{tracker_name}.txt"  # temp MOT output file
-        print(f"   Clip {i+1}/{len(clips)}: {seq_name}")
+        print(f"   Clip {i + 1}/{len(clips)}: {seq_name}")
         timing = tracker_on_sequence(img_folder, weights_path, tracker_name,
                                      tracker_params, out_file, conf, iou)
         timing_rows.append(timing)
@@ -556,10 +548,11 @@ def evaluate_dataset(dataset_name, weights_path, tracker_name, tracker_params,
               "mostly_tracked", "mostly_lost"]:
         vals = [row[k] for row in clip_rows if k in row]
         avg[k] = round(float(np.mean(vals)), 3) if vals else 0.0
-    avg["fps_mean"]        = round(float(np.mean([t["fps"] for t in timing_rows])), 1)
+    avg["fps_mean"] = round(float(np.mean([t["fps"] for t in timing_rows])), 1)
     avg["latency_mean_ms"] = round(float(np.mean([t["latency_mean_ms"] for t in timing_rows])), 2)
-    avg["latency_p95_ms"]  = round(float(np.mean([t["latency_p95_ms"]  for t in timing_rows])), 2)
-    avg["peak_vram_mb"]    = round(float(np.max ([t["peak_vram_mb"]    for t in timing_rows])), 1)  # max not mean — worst case VRAM
+    avg["latency_p95_ms"] = round(float(np.mean([t["latency_p95_ms"] for t in timing_rows])), 2)
+    avg["peak_vram_mb"] = round(float(np.max([t["peak_vram_mb"] for t in timing_rows])),
+                                1)  # max not mean — worst case VRAM
     return avg
 
 
@@ -567,9 +560,9 @@ def evaluate_dataset(dataset_name, weights_path, tracker_name, tracker_params,
 # Evaluation runner — runs every loadable variant through the tracker pipeline
 # ---------------------------------------------------------------------------
 def run_evaluation(variants, tracker_name):
-    cfg            = EvalTrackers[tracker_name]  # look up best params for this tracker
+    cfg = EvalTrackers[tracker_name]  # look up best params for this tracker
     tracker_params = cfg["params"]
-    conf, iou      = cfg["conf"], cfg["iou"]
+    conf, iou = cfg["conf"], cfg["iou"]
     rows = []  # will hold one row per variant per dataset
 
     for v in variants:
@@ -581,7 +574,7 @@ def run_evaluation(variants, tracker_name):
                          "dataset": "N/A",
                          "note": "INT8 skipped — use TensorRT for full Conv INT8 inference",
                          **{k: None for k in ["HOTA (%)", "MOTA (%)", "IDF1 (%)",
-                                               "FPS", "Latency mean (ms)", "Peak VRAM (MB)"]}})
+                                              "FPS", "Latency mean (ms)", "Peak VRAM (MB)"]}})
             continue
 
         wp = v.get("weights_path")
@@ -597,22 +590,22 @@ def run_evaluation(variants, tracker_name):
             avg = evaluate_dataset(dataset_name, wp, tracker_name,
                                    tracker_params, tmp_dir, conf, iou)
             rows.append({
-                "variant":           v["name"],           # e.g. "prune20_ft15ep_fp16"
-                "sparsity":          v["sparsity"],        # 0.2, 0.4, 0.6 or 0.0
-                "finetune":          v["finetune"],        # True/False
-                "quantisation":      v["quantisation"],    # "none", "fp16", "int8"
-                "tracker":           tracker_name,
-                "dataset":           dataset_name,
-                "HOTA (%)":          avg["hota_pct"],
-                "MOTA (%)":          avg["mota_pct"],
-                "IDF1 (%)":          avg["idf1_pct"],
-                "ID Switches":       avg["num_switches"],
-                "MostlyTracked":     avg["mostly_tracked"],
-                "MostlyLost":        avg["mostly_lost"],
-                "FPS":               avg["fps_mean"],
+                "variant": v["name"],  # e.g. "prune20_ft15ep_fp16"
+                "sparsity": v["sparsity"],  # 0.2, 0.4, 0.6 or 0.0
+                "finetune": v["finetune"],  # True/False
+                "quantisation": v["quantisation"],  # "none", "fp16", "int8"
+                "tracker": tracker_name,
+                "dataset": dataset_name,
+                "HOTA (%)": avg["hota_pct"],
+                "MOTA (%)": avg["mota_pct"],
+                "IDF1 (%)": avg["idf1_pct"],
+                "ID Switches": avg["num_switches"],
+                "MostlyTracked": avg["mostly_tracked"],
+                "MostlyLost": avg["mostly_lost"],
+                "FPS": avg["fps_mean"],
                 "Latency mean (ms)": avg["latency_mean_ms"],
-                "Latency p95 (ms)":  avg["latency_p95_ms"],
-                "Peak VRAM (MB)":    avg["peak_vram_mb"],
+                "Latency p95 (ms)": avg["latency_p95_ms"],
+                "Peak VRAM (MB)": avg["peak_vram_mb"],
             })
             print(f"    HOTA:{avg['hota_pct']}%  MOTA:{avg['mota_pct']}%  "
                   f"FPS:{avg['fps_mean']}  VRAM:{avg['peak_vram_mb']}MB")
@@ -631,7 +624,7 @@ def _print_summary(df, tracker_name):
         return
     # average metrics across all datasets for each variant
     summary = (numeric.groupby("variant")[["HOTA (%)", "MOTA (%)", "IDF1 (%)",
-                                            "FPS", "Latency mean (ms)", "Peak VRAM (MB)"]]
+                                           "FPS", "Latency mean (ms)", "Peak VRAM (MB)"]]
                .mean().round(2).reset_index()
                .merge(df[["variant", "sparsity", "quantisation"]].drop_duplicates(),
                       on="variant", how="left"))  # join back sparsity and quantisation columns
@@ -643,11 +636,11 @@ def _print_summary(df, tracker_name):
     print("\n[Pareto front — best HOTA per FPS tier]")
     pareto, best_hota = [], -1
     for _, row in summary.sort_values("FPS").iterrows():
-        if row["HOTA (%)"] > best_hota:       # only keep if better than everything seen so far
+        if row["HOTA (%)"] > best_hota:  # only keep if better than everything seen so far
             best_hota = row["HOTA (%)"]
             pareto.append(row)
     print(pd.DataFrame(pareto)[["variant", "sparsity", "quantisation",
-                                  "HOTA (%)", "FPS", "Latency mean (ms)"]].to_string(index=False))
+                                "HOTA (%)", "FPS", "Latency mean (ms)"]].to_string(index=False))
 
 
 # ---------------------------------------------------------------------------
@@ -660,24 +653,18 @@ if __name__ == "__main__":
     print("1. Compress (pruning + quantisation)")
     print("2. Evaluate (run tracker on existing compressed models)")
     mode_sel = int(input("Selection (1/2): "))
+    tracker_name = "bytetrack"
 
     if mode_sel == 1:
         epochs = int(input("Fine-tuning epochs after pruning (default 15): ") or 15)
         run_compression(epochs=epochs)
 
     elif mode_sel == 2:
-        print("Choose tracker for evaluation")
-        print("1. ByteTrack")
-        print("2. OC-SORT")
-        print("3. DeepSORT")
-        tracker_sel  = int(input("Selection (1/2/3): "))
-        tracker_name = {1: "bytetrack", 2: "ocsort", 3: "deepsort"}[tracker_sel]
         manifest_path = CompressDir / "variants_manifest.csv"
         if not manifest_path.exists():
             raise RuntimeError("No variants_manifest.csv — run compress first (option 1)")
-        manifest = pd.read_csv(manifest_path)      # reload the variant list saved by compression
-        variants = manifest.to_dict(orient="records")  # convert to list of dicts
+        manifest = pd.read_csv(manifest_path)
+        variants = manifest.to_dict(orient="records")
         for v in variants:
-            # convert weights_path strings back to Path objects
             v["weights_path"] = Path(v["weights_path"]) if v["weights_path"] else None
         run_evaluation(variants, tracker_name)
