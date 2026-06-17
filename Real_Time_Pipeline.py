@@ -206,3 +206,19 @@ def run(source, save_video=False):
 
 
 # add main
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Real-Time Tracking Pipeline")
+    parser.add_argument(
+        "--source", default=0,
+        help="Webcam index (0, 1, ...) or path to video file (default: 0)"
+    )
+    parser.add_argument(
+        "--save", action="store_true",
+        help="Start recording immediately on launch"
+    )
+    args = parser.parse_args()
+
+    # convert source to int if it's a digit string (webcam index)
+    source = int(args.source) if str(args.source).isdigit() else args.source
+
+    run(source=source, save_video=args.save)
