@@ -27,13 +27,13 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # use first GPU only
 # ---------------------------------------------------------------------------
 DetectorWeights = r"D:\runs_final\detect\all_datasets\weights\best.pt"
 TrainRunDir = r"D:\runs_final\detect\all_datasets"  # folder of the original training run, used to find the yaml
-OutDir = Path(r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\tracker_outputs")
+OutDir = Path(r"C:\Users\k2549603\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\tracker_outputs")
 CompressDir = OutDir / "compression"  # all compression outputs go here
 Imgsz = 640
 DEVICE = 0
 
 # path where the training yaml will be written or found — used for fine-tuning after pruning
-TrainDataYaml = r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\gmot.yaml"
+TrainDataYaml = r"C:\Users\k2549603\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\gmot.yaml"
 
 # sparsity levels to test — 0.2 removes 20% of filters, 0.4 removes 40%, etc.
 PruneLevels = [0.2, 0.4, 0.6]
@@ -174,18 +174,22 @@ def apply_structured_pruning(nn_model, sparsity: float):
 # ---------------------------------------------------------------------------
 def finetune(weights_path: Path, out_dir: Path, epochs: int):
     print(f"  Fine-tuning for {epochs} epochs ...")
+    if torch.cuda.is_available():
+        print("  Using GPU")
+    else:
+        print(" Not Using CPU")
     model = YOLO(str(weights_path))  # load the pruned weights
     results = model.train(
         data=TrainDataYaml,  # silver-labeled + GMOT training data
         epochs=epochs,  # configurable — default 15
         imgsz=Imgsz,
         batch=16,
-        workers=0,
         device=DEVICE,
         project=str(out_dir),  # save fine-tune run inside the variant's folder
         name="finetune",
         exist_ok=True,  # overwrite if already exists
         verbose=False,
+        optimizer="SGD",
         lr0=1e-4,  # very low starting lr — recovering accuracy, not retraining
         lrf=1e-5,  # final lr — decays from lr0 to lrf over the epochs
         warmup_epochs=1,  # 1 epoch warmup before full lr kicks in
@@ -193,6 +197,8 @@ def finetune(weights_path: Path, out_dir: Path, epochs: int):
         mixup=0.0,  # no mixup — too aggressive for recovery fine-tuning
         patience=5,  # stop early if val loss doesn't improve for 5 epochs
     )
+    if torch.cuda.is_available():
+        print(f"Peak VRAM during training {torch.cuda.max_memory_allocated(DEVICE)/1024/1024:.1f} MB")
     # model.trainer.best points directly to best.pt saved during training
     best = Path(model.trainer.best)
     if not best.exists():
