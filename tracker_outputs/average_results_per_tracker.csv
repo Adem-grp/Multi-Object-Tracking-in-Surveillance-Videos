@@ -1,0 +1,4 @@
+tracker,n_datasets,HOTA (%),MOTA (%),IDF1 (%),ID Switches,MostlyTracked,MostlyLost,FPS,Latency mean (ms),Latency 95 (ms),Peak VRAM (MB)
+bytetrack,4,45.28,52.277,59.585,11.479,20.01,14.427,88.55,11.552,16.238,408.975
+ocsort,4,44.022,50.981,58.512,32.24,18.99,14.906,67.425,15.872,22.722,399.125
+deepsort,4,41.638,31.11,54.532,27.677,23.26,12.594,21.475,53.335,69.822,1692.925
