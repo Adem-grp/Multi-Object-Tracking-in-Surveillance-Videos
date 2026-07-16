@@ -115,6 +115,7 @@ ConfGrid = {
 }
 IouGrid = [0.5, 0.6, 0.7]
 """
+best combination
 TrackerDefaults = {
     #"deepsort": {"max_dist": 0.1, "max_age": 30, "n_init": 3, "max_iou_dist": 0.9},
     #"bytetrack": {"track_high_thresh": 0.4, "track_buffer": 20, "match_thresh": 0.8},

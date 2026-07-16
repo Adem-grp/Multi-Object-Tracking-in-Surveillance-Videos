@@ -18,7 +18,7 @@ DEVICE = 0
 train_run = r"C:\Users\k2549603\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\runs\detect"
 runName = "all_datasets"
 
-eval_results_path = r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\YOLO_inference_evaluations\evaluation_results_dataset_combinations_final.json"
+eval_results_path = r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\YOLO_inference_evaluations\evaluation_yolo11m_without_training.json"
 
 batchSize = 16
 number_of_epochs = 50
@@ -113,8 +113,8 @@ def validate_best(best_weights_path):
     peak_vram = torch.cuda.max_memory_allocated() / (1024 ** 2) if torch.cuda.is_available() else 0
 
     metrics = {
-        "model": "All_datasets",
-        "conf": 0.01,
+        "model": "coco",
+        "conf": 0.05,
         "iou": 0.6,
         "max_det": 500,
         "detection_metrics": {
@@ -207,6 +207,6 @@ if __name__ == "__main__":
     print("CWD:", os.getcwd())
     print("FINAL YAML PATH:", Path(yamlPath).resolve())
 
-    best_weights = r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\runs_final\detect\all_datasets\weights\best.pt"
+    best_weights = r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\yolo11m.pt"
 
-    #validate_best(best_weights)
+    validate_best(best_weights)

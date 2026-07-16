@@ -8,8 +8,8 @@ from collections import deque
 from ultralytics import YOLO
 from boxmot.trackers.bytetrack.byte_tracker import BYTETracker
 
-DetectorWeights = r"D:\runs_final\detect\all_datasets\weights\best.pt"
-OutDir = Path(r"C:\Users\k2549603\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\realtime_outputs")
+DetectorWeights = r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\tracker_outputs\compression\fp16_only\model_fp16.torchscript"
+OutDir = Path(r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\realtime_outputs")
 TrackerParams = {
     "track_high_thresh": 0.4,
     "track_buffer": 20,
@@ -89,14 +89,18 @@ def run(source, save_video=False):
     model = YOLO(DetectorWeights)
     # tracker initialisation
     tracker = BYTETracker(
-        track_thresh=TrackerParams["track_thresh"],
+        track_thresh=TrackerParams["track_high_thresh"],
         match_thresh=TrackerParams["match_thresh"],
         track_buffer=TrackerParams["track_buffer"],
         frame_rate=30,
     )
     cap = cv2.VideoCapture(source)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
     if not cap.isOpened():
         raise RuntimeError(f"Cannot open source {source}")
+    # Create a resizable OpenCV window
+    cv2.namedWindow("Real-Time Tracking", cv2.WINDOW_NORMAL)
     # get frame dimensions
     frame_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     frame_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -135,7 +139,8 @@ def run(source, save_video=False):
             break
         t_start = time.perf_counter()
         # detection inference
-        results = model.predict(frame, conf=Conf, iou=IOU, imgsz=Imgsz, verbose=False, device=Device)
+        
+        results = model.predict(frame, conf=Conf, iou=IOU, imgsz=Imgsz, verbose=False, augment=True,device=Device)
         dets = []
         if results[0].boxes is not None and len(results[0].boxes):
             boxes = results[0].boxes.xyxy.cpu().numpy()
@@ -167,7 +172,20 @@ def run(source, save_video=False):
         # if it is recording create a video
         if recording and videoWriter is not None:
             videoWriter.write(frame)
-        cv2.imshow("Real-Time Tracking", frame)
+        # Get current window size dynamically
+        _, _, win_w, win_h = cv2.getWindowImageRect("Real-Time Tracking")
+
+        # Resize only for display
+        if win_w > 0 and win_h > 0:
+            display_frame = cv2.resize(
+                frame,
+                (win_w, win_h),
+                interpolation=cv2.INTER_LINEAR
+            )
+        else:
+            display_frame = frame
+
+        cv2.imshow("Real-Time Tracking", display_frame)
         # key handling
         key = cv2.waitKey(1) & 0xFF
         if key == ord("q"):

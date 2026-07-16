@@ -33,7 +33,7 @@ def train_yolo(config):
     trial_dir = os.path.join(BASE_DIR, f"trial_{trial_id}")
     os.makedirs(trial_dir, exist_ok=True)
 
-    model = YOLO("yolo11m.pt")
+    model = YOLO("yolo11m.pt") # trained on gmot using yaml and evaluated on gmot val 
 
     results = model.train(
         data=str(Path(yamlPath).resolve()),

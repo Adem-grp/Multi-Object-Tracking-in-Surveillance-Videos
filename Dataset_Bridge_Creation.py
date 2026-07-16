@@ -4,7 +4,7 @@ bridge.py
 Universal bridge script. Replaces both coco_bridge.py and avenue_bridge.py.
 
 PURPOSE:
-  You have datasets whose images have no bounding-box annotations (Avenue, etc.)
+  datasets whose images have no bounding-box annotations (Avenue, etc.)
   or datasets where you want to supplement ground-truth with pseudo-labels
   (GMOT frames not covered by the track_label files).
 
@@ -43,7 +43,7 @@ SRC_ROOT = Path(r"C:/Users/USER/PycharmProjects/Multi-Object-Tracking-in-Surveil
 DST_ROOT = Path(r"C:/Users/USER/PycharmProjects/Multi-Object-Tracking-in-Surveillance-Videos"
                 rf"/datasets/bridge_yolo/{SOURCE_DATASET}")
 
-MODEL = "yolo11n.pt"  # COCO-pretrained weights
+MODEL = "yolo11m.pt"  # COCO-pretrained weights
 CONF = 0.5  # below this treshold is discarded for  higher precision, above for higher recall
 IOU = 0.50  # NMS IoU threshold for suppressing overlapping boxes
 IMGSZ = 640  # this is inference resolution matches YOLO training defaut
