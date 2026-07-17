@@ -19,7 +19,7 @@ from trackeval.metrics import HOTA
 from boxmot.trackers.bytetrack.byte_tracker import BYTETracker
 from deep_sort_realtime.deepsort_tracker import DeepSort
 from ocsort.ocsort import OCSort
-
+import time
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # use first GPU only
 
 # ---------------------------------------------------------------------------
@@ -27,7 +27,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # use first GPU only
 # ---------------------------------------------------------------------------
 DetectorWeights = r"D:\runs_final\detect\all_datasets\weights\best.pt"
 TrainRunDir = r"D:\runs_final\detect\all_datasets"  # folder of the original training run, used to find the yaml
-OutDir = Path(r"C:\Users\k2549603\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\tracker_outputs")
+OutDir = Path(r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\tracker_outputs")
 CompressDir = OutDir / "compression"  # all compression outputs go here
 Imgsz = 640
 DEVICE = 0
@@ -385,7 +385,7 @@ def build_tracker(tracker_name, params):
 # Sequence runner — same as Tracker_Pipeline but weights_path is injected
 # so each compressed model variant can be swapped in
 # ---------------------------------------------------------------------------
-def tracker_on_sequence(img_folder, weights_path, tracker_name, tracker_params,
+def tracker_on_sequence(img_folder, model, tracker_name, tracker_params,
                         output_path, conf, iou):
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -393,8 +393,6 @@ def tracker_on_sequence(img_folder, weights_path, tracker_name, tracker_params,
     frame_paths = sorted(Path(img_folder).glob("*.jpg")) or sorted(Path(img_folder).glob("*.png"))
     if not frame_paths:
         raise RuntimeError(f"No frames in {img_folder}")
-
-    model = YOLO(str(weights_path))  # load the compressed model for this variant
     tracker = build_tracker(tracker_name, tracker_params)
     mot_lines, frame_times, total_time = [], [], 0.0
 
@@ -538,13 +536,14 @@ def evaluate_sequence(gt_path, pred_path, iou_threshold=0.5):
 
 def evaluate_dataset(dataset_name, weights_path, tracker_name, tracker_params,
                      tmp_dir, conf, iou):
+    model = YOLO(str(weights_path))  # load the compressed model for this variant
     clips = DATASETS[dataset_name]  # list of (img_folder, gt_path) tuples for this dataset
     clip_rows, timing_rows = [], []
     for i, (img_folder, gt_path) in enumerate(clips):
         seq_name = Path(img_folder).parent.name  # e.g. "ped1_test1"
         out_file = tmp_dir / f"{seq_name}_{tracker_name}.txt"  # temp MOT output file
         print(f"   Clip {i + 1}/{len(clips)}: {seq_name}")
-        timing = tracker_on_sequence(img_folder, weights_path, tracker_name,
+        timing = tracker_on_sequence(img_folder, model, tracker_name,
                                      tracker_params, out_file, conf, iou)
         timing_rows.append(timing)
         clip_rows.append(evaluate_sequence(gt_path, str(out_file)))
@@ -615,9 +614,11 @@ def run_evaluation(variants, tracker_name):
             })
             print(f"    HOTA:{avg['hota_pct']}%  MOTA:{avg['mota_pct']}%  "
                   f"FPS:{avg['fps_mean']}  VRAM:{avg['peak_vram_mb']}MB")
+            print("Cooling GPU for more accurate FPS")
+            time.sleep(90)
 
     df = pd.DataFrame(rows)
-    csv_path = CompressDir / f"compression_results_{tracker_name}.csv"  # one CSV per tracker
+    csv_path = CompressDir / f"compression_results_{tracker_name}_90s_break.csv"  # one CSV per tracker
     df.to_csv(csv_path, index=False)
     print(f"\n[Done] {csv_path}")
     _print_summary(df, tracker_name)
