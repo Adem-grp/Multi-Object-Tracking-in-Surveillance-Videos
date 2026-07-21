@@ -5,9 +5,7 @@ from pathlib import Path
 from collections import defaultdict
 import xml.etree.ElementTree as ET
 
-# =========================
-# PATHS
-# =========================
+
 BASE = Path(r"/")
 
 VIDEO = BASE / "cvat_inputs" / "avenue" / "avenue_01.mp4"
@@ -16,15 +14,11 @@ OUT_XML = BASE / "cvat_inputs" / "avenue_gt" / "annotations.xml"
 
 OUT_XML.parent.mkdir(parents=True, exist_ok=True)
 
-# =========================
-# IMPORT OC-SORT
-# =========================
+
 sys.path.append(str(BASE / "OC_SORT"))
 from trackers.ocsort_tracker.ocsort import OCSort
 
-# =========================
-# VIDEO INFO
-# =========================
+
 cap = cv2.VideoCapture(str(VIDEO))
 if not cap.isOpened():
     raise RuntimeError("Cannot open video")
@@ -37,9 +31,7 @@ cap.release()
 img_info = (H, W)
 img_size = (H, W)
 
-# =========================
-# TRACKER
-# =========================
+
 tracker = OCSort(
     det_thresh=0.5,   # strict threshold
     max_age=15,
@@ -47,9 +39,7 @@ tracker = OCSort(
     iou_threshold=0.3
 )
 
-# =========================
-# RUN TRACKER (EVERY FRAME)
-# =========================
+
 tracks_by_id = defaultdict(list)
 
 for frame_idx in range(NUM_FRAMES):
@@ -81,9 +71,7 @@ for frame_idx in range(NUM_FRAMES):
 
 print(f"[DEBUG] Number of tracks produced: {len(tracks_by_id)}")
 
-# =========================
-# BUILD CVAT 1.1 XML
-# =========================
+
 root = ET.Element("annotations")
 
 meta = ET.SubElement(root, "meta")
@@ -142,9 +130,7 @@ for tid in sorted(tracks_by_id.keys()):
 
         last_frame = frame
 
-# =========================
-# WRITE XML
-# =========================
+
 ET.ElementTree(root).write(
     OUT_XML,
     encoding="utf-8",

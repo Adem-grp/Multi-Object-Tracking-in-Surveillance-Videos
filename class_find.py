@@ -1,20 +1,4 @@
-"""
-class_find.py
-=============
-Two clearly separated tools:
 
-  1. audit_labels()  — safe to run any time.
-                       Counts class IDs found across all label files and reports them.
-                       Read-only: never modifies anything.
-
-  2. remap_labels()  — DESTRUCTIVE. Rewrites every label file in-place.
-                       Requires explicit confirmation before running.
-                       Only use this if you know your labels still carry old COCO IDs.
-                       If your GMOT labels are already 0-9, DO NOT call this function.
-
-At the bottom, only audit_labels() is called by default.
-
-"""
 
 from collections import Counter
 import glob
