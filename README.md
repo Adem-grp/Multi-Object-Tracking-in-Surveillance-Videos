@@ -275,10 +275,6 @@ Multi-Object-Tracking-in-Surveillance-Videos/
 │   ├── evaluation_results_dataset_combinations_final.json
 │   └── ...other evaluation files
 │
-├── result_notes/
-│   ├── result_notes.txt                # Training analysis notes
-│   └── fps_relation results            # Detailed FPS analysis
-│
 └── venv_mot/                           # Python virtual environment
 ```
 
@@ -611,7 +607,6 @@ This project is provided for academic and research purposes. Ensure compliance w
 ## 📧 Contact & Support
 
 For questions or issues regarding this implementation:
-- Review `result_notes/` for experimental insights
 - Check `YOLO_inference_evaluations/` for detailed metrics
 - Refer to tracker-specific documentation in `OC_SORT/`
 
