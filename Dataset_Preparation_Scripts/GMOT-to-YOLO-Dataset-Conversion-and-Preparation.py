@@ -1,27 +1,26 @@
-import configparser
+import configparser # for reading .ini files
 import os
 import glob
 import shutil
 import random
-
-from sqlalchemy.dialects.oracle.dictionary import all_sequences
 from tqdm import tqdm
 import pandas as pd
 import cv2
 
 # turning GMOT to yolo format
+# change the paths accordingly if needed
 GMOT_ROOT = r"C:/Users/USER/PycharmProjects/Multi-Object-Tracking-in-Surveillance-Videos/GenericMOT_JPEG_Sequence"
 TRACK_LABEL_ROOT = r"C:/Users/USER/PycharmProjects/Multi-Object-Tracking-in-Surveillance-Videos/track_label"
 YOLO_ROOT = r"C:/Users/USER/PycharmProjects/Multi-Object-Tracking-in-Surveillance-Videos/datasets/gmot_yolo"
 
-# ================= Config =================
+# Config
 RANDOM_SEED = 42
-TRAIN_RATIO = 0.7
+TRAIN_RATIO = 0.7  # classic train-val-test split
 VAL_RATIO = 0.1
 TEST_RATIO = 0.2
-AUTO_FRAME_OFFSET = True  # try both 0 and 1, pick the higher hit count
+AUTO_FRAME_OFFSET = True
 
-# ================= GMOT taxonomy =================
+# GMOT classes
 CLASS_MAP = {
     "airplane": 0, "fish": 1, "ball": 2, "bird": 3,
     "boat": 4, "balloon": 5, "person": 6, "insect": 7,
@@ -29,21 +28,20 @@ CLASS_MAP = {
 }
 CLASS_NAMES = {v: k for k, v in CLASS_MAP.items()}
 
-# Optional alias normalization if some folder names vary
+# safety measure if some files vary
 ALIASES = {
     "plane": "airplane", "aeroplane": "airplane",
     "human": "person", "people": "person",
     "auto": "car", "vehicle": "car",
-    # add more if needed
 }
 
 
-# ================= Helpers =================
+# Helper functions
 def normalize_class_name(name: str) -> str:
     name = name.strip().lower()
-    return ALIASES.get(name, name)
+    return ALIASES.get(name, name)  # class name normalization
 
-
+# if the value is int it passes if not returns None to avoid crashing
 def safe_int(s):
     try:
         return int(s)
@@ -52,23 +50,23 @@ def safe_int(s):
 
 
 def yolo_bbox(x, y, w, h, img_w, img_h):
-    """Convert pixel bbox (top-left x,y,w,h) to YOLO normalized (xc,yc,w,h)."""
-    x_c = (x + w / 2.0) / max(img_w, 1)
+    x_c = (x + w / 2.0) / max(img_w, 1)  # converting bounding boxes to YOLO format (xc,yc,w,h)
     y_c = (y + h / 2.0) / max(img_h, 1)
     w_n = w / max(img_w, 1)  # normalization is done with max(img_w/h,1)
     h_n = h / max(img_h, 1)
     return x_c, y_c, w_n, h_n
 
 
+# check the first image filename to determine the starting frame number
 def detect_first_index(imgs):
-    """Infer the first numeric index from the first filename."""
     if not imgs:
-        return 0
-    first_basename = os.path.splitext(os.path.basename(imgs[0]))[0]
+        return 0  #
+    first_basename = os.path.splitext(os.path.basename(imgs[0]))[
+        0]  # get the first numeric index from the first filename
     stripped = first_basename.lstrip("0")
     return safe_int(stripped) if stripped != "" else 0
 
-
+# since all frames within a sequence have the same resolution, we do not need to open every image
 def read_seq_dims(folder: str):  # create seqinfo.ini and read the width and height from there
     seq_info_path = os.path.join(folder, "seqinfo.ini")
     # if the file doesn't exist or is malformed cv2.imread is performed tho
@@ -83,9 +81,9 @@ def read_seq_dims(folder: str):  # create seqinfo.ini and read the width and hei
     except(KeyError, ValueError):
         return None
 
-
+# checking if frame numbers in annotation files are the same with filenames or not
+# basically checking for example if the file name is 0 but if frame starts with 1.
 def best_frame_offset(label_df, img_dir, first_index):
-    """Try offsets 0 and 1; choose the one that maps to most existing image files."""
     if not AUTO_FRAME_OFFSET:
         return 0
     if label_df.empty:
@@ -102,40 +100,41 @@ def best_frame_offset(label_df, img_dir, first_index):
     def hit_count(offset):
         hits = 0
         for f in frames[:500]:  # limit cost
-            img_index = (first_index or 0) + f + offset
+            img_index = (first_index or 0) + f + offset # create potential image index
             img_name = f"{img_index:06d}.jpg"
             img_path = os.path.join(img_dir, img_name)
-            if os.path.exists(img_path):
+            if os.path.exists(img_path): # check if the image exists
                 hits += 1
         return hits
 
-    return 0 if hit_count(0) >= hit_count(1) else 1
+    return 0 if hit_count(0) >= hit_count(1) else 1 # choose whichever is valid
 
 
 # ================= Main =================
 def main():
-    os.makedirs(YOLO_ROOT, exist_ok=True)
+    os.makedirs(YOLO_ROOT, exist_ok=True) # create output directory
 
     labels_by_image = {}  # key: original img_path, value: list of yolo lines
     image_sizes_cache = {}  # key: original img_path, value: (H,W)
+    # since one image can have multiple objects, cache stores dimensions obtained from OpenCV
     all_images = []  # unique original img paths that have at least one label
-    seq_of_image = {}
-    folders = sorted(glob.glob(os.path.join(GMOT_ROOT, "*")))
+    seq_of_image = {} # record which sequence each image belongs to
+    folders = sorted(glob.glob(os.path.join(GMOT_ROOT, "*"))) # check the root and get sequence folders
     print(f"Found {len(folders)} class/sequence folders under GMOT_ROOT")
 
     for folder in tqdm(folders, desc="Processing sequences"):
         folder_name = os.path.basename(folder)
         # Expect folder like 'car-02', class_name will be 'car'
-        class_name = normalize_class_name(folder_name.split("-")[0])
+        class_name = normalize_class_name(folder_name.split("-")[0]) # standardise the class name
         if class_name not in CLASS_MAP:
             print(f"[WARN] Skipping unknown class folder: {folder_name} (parsed '{class_name}')")
             continue
-        class_id = CLASS_MAP[class_name]
+        class_id = CLASS_MAP[class_name] # get the numerical equivalent of class_name
 
-        img_dir = os.path.join(folder, "img1")
+        img_dir = os.path.join(folder, "img1") # images are stored in "img1" folder
         if not os.path.isdir(img_dir):
             continue
-        imgs = sorted(glob.glob(os.path.join(img_dir, "*.jpg")))
+        imgs = sorted(glob.glob(os.path.join(img_dir, "*.jpg"))) # get all jpg files
         if not imgs:
             continue
 
@@ -149,7 +148,7 @@ def main():
         label_file = label_file_candidates[0]
 
         try:
-            df = pd.read_csv(label_file, header=None)
+            df = pd.read_csv(label_file, header=None) # load annotations into pandas frame
         except Exception as e:
             print(f"[WARN] Failed reading {label_file}: {e}")
             continue
@@ -164,6 +163,8 @@ def main():
         seq_dims = read_seq_dims(folder_name)
 
         # Iterate rows and convert to YOLO labels
+        # extract frame x,y width, length
+        # skipped tracking id because it is not needed for detection
         for _, row in df.iterrows():
             frame = safe_int(row[0])  # frame index within sequence
             try:
@@ -177,8 +178,8 @@ def main():
                 continue
 
             # Map frame -> filename (handle index + offset)
-            img_index = (first_index or 0) + frame + offset
-            img_name = f"{img_index:06d}.jpg"
+            img_index = (first_index or 0) + frame + offset # determine the image number
+            img_name = f"{img_index:06d}.jpg" # check if 6-digit file name exist
             img_path = os.path.join(img_dir, img_name)
             if not os.path.exists(img_path):
                 continue
@@ -197,10 +198,13 @@ def main():
                     continue
                 H, W = im.shape[:2]
                 image_sizes_cache[img_path] = (H, W)
+            # convert bounding box into YOLO format
 
             x_c, y_c, w_n, h_n = yolo_bbox(x, y, w_box, h_box, W, H)
+            # create YOLO annotation line
             line = f"{class_id} {x_c:.6f} {y_c:.6f} {w_n:.6f} {h_n:.6f}"
-
+            # to avoid multiple files for single frame we create an empty list for the image
+            # and append the object's annotation
             labels_by_image.setdefault(img_path, []).append(line)
             all_images.append(img_path)
             seq_of_image[img_path] = folder_name
@@ -210,7 +214,6 @@ def main():
     if not all_images:
         raise SystemExit("No labeled images found. Check CSV mapping and folder names!")
 
-    # ================= Split train/val/test =================
     # fixed sequence-level split
     # splitting individual frames randomly caused data leakage.
     # frames from the same video that are 1-2 frames apart can end up in both train and val
@@ -226,7 +229,7 @@ def main():
     random.seed(RANDOM_SEED)
     random.shuffle(all_sequences_)
 
-    total = len(all_sequences_)
+    total = len(all_sequences_) # calculating the split
     train_end = int(total * TRAIN_RATIO)
     val_end = train_end + int(total * VAL_RATIO)
 
@@ -237,13 +240,14 @@ def main():
     train_list = [p for p in all_images if seq_of_image[p] in train_seq]
     val_list = [p for p in all_images if seq_of_image[p] in val_seq]
     test_list = [p for p in all_images if seq_of_image[p] in test_seq]
-
+    # check if images are split properly
     assert len(train_list) + len(val_list) + len(test_list) == len(
         all_images), "Split counts do not sum up to total images!"
 
     splits = [("train", train_list), ("val", val_list), ("test", test_list)]
 
-    # ================= Write images & labels =================
+    # Write images & labels
+    # create the YOLO folder structure
     for split, lst in splits:
         img_out = os.path.join(YOLO_ROOT, split, "images")
         lbl_out = os.path.join(YOLO_ROOT, split, "labels")
@@ -256,19 +260,19 @@ def main():
             # Avoid filename collisions across sequences: prefix with parent sequence folder
             parent_seq = seq_of_image[img_path]
             safe_prefix = parent_seq.replace(" ", "_")
-            out_img_name = f"{safe_prefix}_{name_noext}.jpg"
+            out_img_name = f"{safe_prefix}_{name_noext}.jpg" # making sure filenames stay unique
             out_lbl_name = f"{safe_prefix}_{name_noext}.txt"
 
             dst_img = os.path.join(img_out, out_img_name)
             dst_lbl = os.path.join(lbl_out, out_lbl_name)
 
-            shutil.copy2(img_path, dst_img)
+            shutil.copy2(img_path, dst_img) # copy the image
             lines = labels_by_image.get(img_path, [])
             with open(dst_lbl, "w", encoding="utf-8") as f:
-                f.write("\n".join(lines))
+                f.write("\n".join(lines)) # create the YOLO label file of the image
 
-    # ================= Audit (ID consistency) =================
-    allowed_ids = set(CLASS_NAMES.keys())
+    # ID consistency check
+    allowed_ids = set(CLASS_NAMES.keys()) # get valid class ids
     violations = 0
     for split, lst in splits:
         lbl_out = os.path.join(YOLO_ROOT, split, "labels")
@@ -280,7 +284,7 @@ def main():
                         continue
                     parts = line.split()
                     cid = int(parts[0])
-                    if cid not in allowed_ids:
+                    if cid not in allowed_ids: # find if invalid class ID exists
                         violations += 1
                         print(f"[ID MISMATCH] {p}: {cid} not in {sorted(allowed_ids)}")
     if violations == 0:
@@ -288,13 +292,12 @@ def main():
     else:
         print(f"[AUDIT] Found {violations} ID mismatches (see logs above).")
 
-    # ================= Summary =================
+    #  Summary
     print("\n========== SUMMARY ==========")
     print(f"Total labeled images: {len(all_images)}")
     print(f"Train set: {len(train_list)} images")
     print(f"Val set:   {len(val_list)} images")
     print(f"Test set:  {len(test_list)} images")
-    # yolo detect train data={yaml_path} model=yolov11n.pt epochs=50 imgsz=640 batch=16")
 
 
 if __name__ == "__main__":

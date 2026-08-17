@@ -1,59 +1,27 @@
-"""
-Dataset structure expected:
-    UCSD_Anomaly_Dataset.v1p2/
-        UCSDped1/
-            Train/
-                Train001/  <- .tif frames
-                Train002/
-                ...
-            Test/
-                Test001/   <- .tif frames
-                Test002/
-                Test001_gt/ <- ignored
-                ...
-        UCSDped2/
-            Train/
-                Train001/
-                ...
-            Test/
-                Test001/
-                ...
-
-Output structure:
-    datasets/ucsd_yolo/
-        train/
-            images/
-            labels/   <- empty .txt files, bridge script fills these
-        test/
-            images/
-            labels/   <- empty .txt files
-
-"""
-
 import cv2
 import shutil
 from pathlib import Path
 from tqdm import tqdm
 
-# ================= CONFIG =================
+# CONFIG
+# dataset path change if needed
 SRC_ROOT = Path(r"C:/Users/USER/PycharmProjects/Multi-Object-Tracking-in-Surveillance-Videos/UCSD_Anomaly_Dataset.v1p2")
-DST_ROOT = Path(r"/datasets/ucsd_yolo")
+DST_ROOT = Path(r"/datasets/ucsd_yolo")  # output path
 
-FRAME_STRIDE = 1      # 1 = every frame, 2 = every other frame
-JPEG_QUALITY = 95
+FRAME_STRIDE = 1  # take all frames
+JPEG_QUALITY = 95  # arrange the image quality
 
-# Both subsets processed in one run
+# there are two subsets of this dataset
 SUBSETS = ["UCSDped1", "UCSDped2"]
 
-# Original split folder names -> our split names
-# Test sequences go into our 'test' output folder but will be
-# used as training data in gmot.yaml (no ground truth = no benchmark value)
+# prepare the split as test and train since val split will not be necessary
 SPLIT_MAP = {
     "Train": "train",
-    "Test":  "test",
+    "Test": "test",
 }
 
 
+# arrange the folders according to YOLO format
 def ensure_dirs(split: str) -> tuple[Path, Path]:
     img_dir = DST_ROOT / split / "images"
     lbl_dir = DST_ROOT / split / "labels"
@@ -63,11 +31,9 @@ def ensure_dirs(split: str) -> tuple[Path, Path]:
 
 
 def list_sequences(split_dir: Path) -> list[Path]:
-    """
-    Return all valid sequence folders inside a split directory.
-    Skips anything ending in '_gt' since those are anomaly mask folders.
-    Skips files (only processes directories).
-    """
+    # Return all valid sequence folders inside a split directory.
+    # Skips anything ending in '_gt' since those are anomaly mask folders.
+    # Skips files (only processes directories).
     if not split_dir.exists():
         print(f"[WARN] Split directory not found: {split_dir}")
         return []
@@ -96,21 +62,22 @@ def extract_sequence(seq_folder: Path, img_dir: Path, lbl_dir: Path) -> int:
       - Train and Test splits (both may have Test001 etc.)
     """
     subset_name = seq_folder.parent.parent.name  # UCSDped1 or UCSDped2
-    split_name = seq_folder.parent.name         # Train or Test
-    seq_name = seq_folder.name                # Train001, Test001 etc.
+    split_name = seq_folder.parent.name  # Train or Test
+    seq_name = seq_folder.name  # Train001, Test001 etc.
     prefix = f"{subset_name}_{split_name}_{seq_name}"
 
-    tif_files = sorted(seq_folder.glob("*.tif"))
+    tif_files = sorted(seq_folder.glob("*.tif"))  # get all tif files
     if not tif_files:
         print(f"[WARN] No .tif files in {seq_folder}, skipping.")
         return 0
 
     saved = 0
+    # give each tif file an index and process them like in other preparation files
     for idx, tif_path in enumerate(tqdm(tif_files, desc=prefix, leave=False)):
         if idx % FRAME_STRIDE != 0:
             continue
 
-        frame = cv2.imread(str(tif_path))
+        frame = cv2.imread(str(tif_path))  # read the frame
         if frame is None:
             print(f"[WARN] Could not read {tif_path}, skipping.")
             continue
@@ -118,54 +85,46 @@ def extract_sequence(seq_folder: Path, img_dir: Path, lbl_dir: Path) -> int:
         stem = f"{prefix}_{idx:06d}"
         img_path = img_dir / f"{stem}.jpg"
         lbl_path = lbl_dir / f"{stem}.txt"
-
+        # save the image as JPEG for convenience
         cv2.imwrite(str(img_path), frame, [cv2.IMWRITE_JPEG_QUALITY, JPEG_QUALITY])
-        lbl_path.write_text("", encoding="utf-8")
+        lbl_path.write_text("", encoding="utf-8")  # create empty labels since this is also an anomaly dataset
         saved += 1
 
     return saved
 
 
-
 def main():
-    if DST_ROOT.exists():
+    if DST_ROOT.exists():  # this removes the previous arranged dataset if it is incomplete so comment it out if necessary
         shutil.rmtree(DST_ROOT)
     DST_ROOT.mkdir(parents=True, exist_ok=True)
 
     stats = {}
-
+    # arrange the YOLO folder structure
     for subset in SUBSETS:
         for original_split, our_split in SPLIT_MAP.items():
             split_dir = SRC_ROOT / subset / original_split
-            sequences = list_sequences(split_dir)
+            sequences = list_sequences(split_dir)  # find actual sequence directories
 
             if not sequences:
                 print(f"[INFO] No sequences found in {split_dir}, skipping.")
                 continue
 
-            img_dir, lbl_dir = ensure_dirs(our_split)
+            img_dir, lbl_dir = ensure_dirs(our_split)  # use mapped name and arrange output split
 
             total_frames = 0
             for seq in sequences:
                 total_frames += extract_sequence(seq, img_dir, lbl_dir)
 
-            key = f"{subset}/{original_split}"
-            stats[key] = {
+            key = f"{subset}/{original_split}"  # create identifiers
+            stats[key] = {  # store values for the summary part
                 "sequences": len(sequences),
-                "frames":    total_frames,
-                "output":    our_split
+                "frames": total_frames,
+                "output": our_split
             }
 
     for key, d in stats.items():
         print(f"{key}: {d['sequences']} sequences -> {d['frames']} frames -> datasets/ucsd_yolo/{d['output']}")
     print(f"\nOutput root: {DST_ROOT}")
-
-    print(
-        "\nNext steps:"
-        "\n  1. Run bridge.py with SOURCE_DATASET = 'ucsd' for both train and test splits"
-        "\n  2. Add to gmot.yaml under train:"
-        "\n       - datasets/bridge_yolo/ucsd/train/images"
-    )
 
 
 if __name__ == "__main__":
