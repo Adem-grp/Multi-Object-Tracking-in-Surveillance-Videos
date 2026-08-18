@@ -1,14 +1,15 @@
 import json
 
+# result file path
 file_path =r"C:\Users\k2549603\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\YOLO_inference_evaluations\eval_results_YOLOm.json"
 
 configs = []
-
+# get json text and store it in a dictionary
 with open(file_path, "r") as f:
     for line in f:
         configs.append(json.loads(line.strip()))
 
-# remove duplicates (ignore max_det)
+# remove duplicates (ignore max_det since it did not affect the results )
 seen = {}
 for c in configs:
     key = (c["conf"], c["iou"], c["agnostic_nms"])
@@ -17,20 +18,21 @@ for c in configs:
 
 configs = list(seen.values())
 
-
+# select the 10 configurations that has highest mAP50 score
 top_map = sorted(
     configs,
     key=lambda c: c["detection_metrics"]["mAP50"],
     reverse=True
 )[:10]
 
+# select the 10 configurations that has highest recall score
 top_recall = sorted(
     configs,
     key=lambda c: c["detection_metrics"]["recall"],
     reverse=True
 )[:10]
 
-
+# find the best 10 that has highest mAP50 and Recall
 map_keys = set((c["conf"], c["iou"], c["agnostic_nms"]) for c in top_map)
 recall_keys = set((c["conf"], c["iou"], c["agnostic_nms"]) for c in top_recall)
 
@@ -39,7 +41,7 @@ intersection_keys = map_keys & recall_keys
 
 if intersection_keys:
     candidates = [c for c in configs if (c["conf"], c["iou"], c["agnostic_nms"]) in intersection_keys]
-
+    # get the best results and find the highest scoring one
     best = max(
         candidates,
         key=lambda c: c["detection_metrics"]["mAP50"]

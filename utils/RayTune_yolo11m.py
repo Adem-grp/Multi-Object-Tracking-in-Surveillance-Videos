@@ -8,46 +8,44 @@ from ray.air import session
 import json
 import shutil
 
-
+# Configure Ray Tune logging and restrict the experiment to the CUDA.
 os.environ["TUNE_DISABLE_AUTO_CALLBACK_LOGGERS"] = "1"
 os.environ["TUNE_DISABLE_STRICT_METRIC_CHECKING"] = "1"
 
-
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-
 
 BASE_DIR = r"C:\ray_runs"
 os.makedirs(BASE_DIR, exist_ok=True)
 
+# yaml for train test and val
 yamlPath = r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\gmot.yaml"
-results_json_path = os.path.join(BASE_DIR, "yolo11m_results.json")
+results_json_path = os.path.join(BASE_DIR, "yolo11m_results.json")  # results stored in json file
 
 
 def train_yolo(config):
-
     from filelock import FileLock
 
     trial_id = session.get_trial_id()
 
-
-    trial_dir = os.path.join(BASE_DIR, f"trial_{trial_id}")
+    trial_dir = os.path.join(BASE_DIR, f"trial_{trial_id}")  # each rayTune trial has its own id
     os.makedirs(trial_dir, exist_ok=True)
 
-    model = YOLO("yolo11m.pt") # trained on gmot using yaml and evaluated on gmot val 
+    model = YOLO("yolo11m.pt")  # load yolo11m
 
     results = model.train(
+        # using GMOT-40 dataset train and validate to see which hyperparameter combination is the best
         data=str(Path(yamlPath).resolve()),
         epochs=40,
         imgsz=640,
         batch=8,
         device=0,
 
-        lr0=config["lr0"],
+        lr0=config["lr0"],  # parameters that will be optimised
         momentum=config["momentum"],
         weight_decay=config["weight_decay"],
 
         optimizer="SGD",
-        patience=8,
+        patience=8,  # if training does not improve we stop at patience 8 to avoid overfitting
         seed=42,
         verbose=False,
 
@@ -55,9 +53,9 @@ def train_yolo(config):
         name="run"
     )
 
-    metrics = results.results_dict
+    metrics = results.results_dict  # get the detection metric results from validation
 
-    result_entry = {
+    result_entry = {  # results are arranged according to json format hyperparameters and results are stored together
         "trial_id": trial_id,
         "lr0": config["lr0"],
         "momentum": config["momentum"],
@@ -68,26 +66,25 @@ def train_yolo(config):
         "mAP50-95": float(metrics["metrics/mAP50-95(B)"])
     }
 
-
     lock = FileLock(results_json_path + ".lock")
+    # lock is applied to make sure only one trial modifies or reads the results file
 
-    with lock:
+    with lock:  # prevents concurrent trials from corrupting the shared results file
         if os.path.exists(results_json_path):
             try:
-                with open(results_json_path, "r") as f:
+                with open(results_json_path, "r") as f:  # read the file take the existing data
                     data = json.load(f)
             except:
                 data = []
         else:
             data = []
 
-        data.append(result_entry)
+        data.append(result_entry)  # add the new data
 
-        with open(results_json_path, "w") as f:
+        with open(results_json_path, "w") as f:  # and write them all together
             json.dump(data, f, indent=4)
 
-
-    tune.report({
+    tune.report({  # send metrics back to rayTune for trial comparison and scheduling
         "mAP50": result_entry["mAP50"],
         "precision": result_entry["precision"],
         "recall": result_entry["recall"],
@@ -95,12 +92,15 @@ def train_yolo(config):
     })
 
 
-
+# Search ranges for the three SGD training hyperparameters.
+# Log-uniform sampling is used for learning rate and weight decay.
 search_space = {
     "lr0": tune.loguniform(1e-4, 1e-2),
     "momentum": tune.uniform(0.7, 0.95),
     "weight_decay": tune.loguniform(1e-5, 5e-4)
 }
+
+# Asha allows ray tune to stop trials that perform poorly rather than allowing every config to train for full 40 epochs
 
 scheduler = ASHAScheduler(
     max_t=40,
@@ -108,26 +108,25 @@ scheduler = ASHAScheduler(
     reduction_factor=2
 )
 
-
 if __name__ == "__main__":
 
-    ray.init()
+    ray.init()  # initialize ray
 
     trainable = tune.with_resources(
         train_yolo,
-        resources={"cpu": 2, "gpu": 1}
+        resources={"cpu": 2, "gpu": 1}  # arranging the resources properly
     )
 
-    tuner = tune.Tuner(
+    tuner = tune.Tuner( # tuner connects training function with search space
         trainable,
         param_space=search_space,
 
         tune_config=tune.TuneConfig(
-            metric="mAP50",
-            mode="max",
+            metric="mAP50", # use mAP50 to evaluate performance
+            mode="max", # higher mAP50 is better
             scheduler=scheduler,
             num_samples=15,
-            max_concurrent_trials=1
+            max_concurrent_trials=1 # only one trial will run at a time
         ),
 
         run_config=ray.air.RunConfig(
@@ -138,17 +137,18 @@ if __name__ == "__main__":
     )
 
     results = tuner.fit()
-
+    # get the highest mAP50 trial
     best_result = results.get_best_result(metric="mAP50", mode="max")
 
     print("\nBEST CONFIG:", best_result.config)
     print("\nBEST METRICS:", best_result.metrics)
 
+    # locate the best trial to see the hyperparameters
     best_trial_id = best_result.metrics["trial_id"]
     best_trial_dir = os.path.join(BASE_DIR, f"trial_{best_trial_id}")
-
+    # Copy the best trial's weights to a certain location for further evaluation.
     best_weights_path = os.path.join(best_trial_dir, "run", "weights", "best.pt")
-    final_model_path = os.path.join(BASE_DIR, "best_overall.pt")
+    final_model_path = os.path.join(BASE_DIR, "best_baseline_before_dataset_comb.pt")
 
     if os.path.exists(best_weights_path):
         shutil.copy(best_weights_path, final_model_path)

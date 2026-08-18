@@ -25,9 +25,10 @@ GMOT_GT_FILES = [
     r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\gmot_yolo\test\boat-1\gt\gt.txt",
 ]
 
-Person = 6
+Person = 6  # class id
 
 
+# creating backup files before modification
 def backup(path):
     bak = path.with_suffix(".txt.bak")
     if not bak.exists():
@@ -35,6 +36,7 @@ def backup(path):
         print(f"backup {bak.name}")
 
 
+# parsing an annotation line checking both for comma and white-space separated formats.
 def parse_line(line):
     line = line.strip()
     if not line:
@@ -48,37 +50,38 @@ def parse_line(line):
 # cvat gt fix
 def fix_cvat_gt(gt_path):
     path = Path(gt_path)
-    if not path.exists():
+    if not path.exists():  # check if file exists
         print(f"fix_cvat_gt {gt_path} is skipped not found ")
         return
-    lines = path.read_text(encoding="utf-8").strip().splitlines()
-    if not lines:
+    lines = path.read_text(encoding="utf-8").strip().splitlines()  # read the file and separate into rows
+    if not lines:  # if the file is empty then stop
         print(f"fix_cvat_gt {gt_path} is empty")
         return
-    backup(path)
-    fixed = []
-    frame_changed = 0
-    class_changed = 0
+    backup(path)  # create the backup file
+    fixed = []  # store fixed annotation rows
+    frame_changed = 0  # count the rows that changed frame number
+    class_changed = 0  # count the changed Class IDs
     for raw in lines:
-        parts = parse_line(raw)
+        parts = parse_line(raw)  # Parse each annotation row
         if parts is None:
             continue
         try:
-            frame = int(float(parts[0]))
-            if frame >= 1:
+            frame = int(float(parts[0]))  # change the frame numbers so that they start from 0 not 1
+            if frame >= 1:  # basically change 1-based index to 0-based index
                 parts[0] = str(frame - 1)
                 frame_changed += 1
         except ValueError:
             pass
-        if len(parts) > 7:
+        if len(parts) > 7:  # make sure all classes are person since anomaly datasets only had that class
             if parts[7].strip() != str(Person):
                 parts[7] = str(Person)
                 class_changed += 1
-        fixed.append(",".join(parts))
+        fixed.append(",".join(parts))  # reconstruct the values as comma separated
     path.write_text("\n".join(fixed), encoding="utf-8")
     print(f"{path.name}-{frame_changed} frames shifted, {class_changed} class indices fixed")
 
 
+# making sure gmot also satisfy this class idx
 def check_gmot_gt(gt_path):
     path = Path(gt_path)
     if not path.exists():
