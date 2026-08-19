@@ -3,8 +3,11 @@
 from collections import Counter
 import glob
 
-# Your dataset root
+# Dataset root
 ROOT = r"C:/Users/USER/PycharmProjects/Multi-Object-Tracking-in-Surveillance-Videos/datasets/gmot_yolo"
+
+
+# Map the original GMOT class IDs to the 10 class IDs used in this project.
 
 # Folder → class ID mapping
 class_map = {
@@ -58,7 +61,7 @@ def audit_labels(root=ROOT):  # this only scans it how many labels exist per cla
         print(f"ID: {key} : {val} bounding boxes")
 
     # if ID is not remapped :
-    # change k>9 if we add more class names
+    # change k>9 if  more classes are added
     if any(k > 9 for k in class_counts):
         print("Class IDs>9 fix it ")
     else:
@@ -66,7 +69,7 @@ def audit_labels(root=ROOT):  # this only scans it how many labels exist per cla
     return class_counts
 
 # rewrites IDs and replaces old ones within files
-# so first time only needs to be run per dataset
+# soneeds to be run per dataset first time only
 def remap_labels(root=ROOT,mapping = mapping):
     print("ID substitutions will be applied to all label files")
     for old_id, new_id in sorted(mapping.items()):
@@ -100,6 +103,6 @@ def remap_labels(root=ROOT,mapping = mapping):
 
 if __name__ == "__main__":
     audit_labels()
-    # if files have old COCO IDs so run at start when you create stuff
-    # run all datasets just in case as well
+    # auditlabels checks  if there are any problems with labels
+    # remap labels directly remaps the labels accordingly
     #remap_labels()

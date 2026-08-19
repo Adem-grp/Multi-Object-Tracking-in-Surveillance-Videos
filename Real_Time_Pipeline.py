@@ -1,3 +1,16 @@
+"""
+Real-time multi-object tracking pipeline using YOLO11m and ByteTrack.
+
+The pipeline performs object detection on video or webcam frames, passes
+detections to ByteTrack for multi-object tracking, and displays tracking
+results with class labels, track IDs, FPS, and GPU memory usage.
+
+Optional recording and screenshot functionality is provided for qualitative
+evaluation of the tracking pipeline.
+"""
+
+
+
 import argparse
 import time
 import cv2
@@ -7,10 +20,11 @@ from pathlib import Path
 from collections import deque
 from ultralytics import YOLO
 from boxmot.trackers.bytetrack.byte_tracker import BYTETracker
-
+# best detector
 DetectorWeights = r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\tracker_outputs\compression\fp16_only\model_fp16.torchscript"
+# the output path for videos and screenshots
 OutDir = Path(r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\realtime_outputs")
-TrackerParams = {
+TrackerParams = { # best tracker paramters for ByteTrack
     "track_high_thresh": 0.4,
     "track_buffer": 20,
     "match_thresh": 0.8,
@@ -94,7 +108,7 @@ def run(source, save_video=False):
         track_buffer=TrackerParams["track_buffer"],
         frame_rate=30,
     )
-    cap = cv2.VideoCapture(source)
+    cap = cv2.VideoCapture(source) # open the video source
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
     if not cap.isOpened():
@@ -203,7 +217,7 @@ def run(source, save_video=False):
                 videoPath = OutDir / f"tracking_{ts}.mp4"
                 videoWriter = cv2.VideoWriter(
                     str(videoPath),
-                    cv2.VideoWriter.fourcc(*"mp4v"), # fourcc might malfunction so double check that
+                    cv2.VideoWriter.fourcc(*"mp4v"),
                     30,(frame_w, frame_h),
                 )
                 recording = True
@@ -223,7 +237,6 @@ def run(source, save_video=False):
     print(f"Session ended. Processed {frame_idx} frames.")
 
 
-# add main
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Real-Time Tracking Pipeline")
     parser.add_argument(

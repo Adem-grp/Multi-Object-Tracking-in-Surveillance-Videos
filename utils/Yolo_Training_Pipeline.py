@@ -8,7 +8,7 @@ import os
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
-Best_LR0 = 0.002038823487169829
+Best_LR0 = 0.002038823487169829  # Best hyperparameters obtained from Ray Tune runs
 Best_MOMENTUM = 0.731639442196722
 Best_WEIGHT_DECAY = 1.4718411535261374e-05
 
@@ -16,16 +16,21 @@ yamlPath = r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance
 DEVICE = 0
 
 train_run = r"C:\Users\k2549603\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\runs\detect"
-runName = "all_datasets"
+runName = "all_datasets"  # change according to the dataset combinations this is the last prepared one
 
+# evaluation results stored in a json format
+# changed the result path depending on which function runs to avoid confusion
+# all results files are on GitHub
 eval_results_path = r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\YOLO_inference_evaluations\evaluation_yolo11m_without_training.json"
 
 batchSize = 16
 number_of_epochs = 50
 
+
 def train(best_weights_path):
     model = YOLO(best_weights_path)
-
+    # load the best model from Ray Tune and further train on combinations of datasets
+    # of course the datasets were arrenged by commenting out the ones that do not belong to that combination from yaml
     model.train(
         data=str(Path(yamlPath).resolve()),
         epochs=number_of_epochs,
@@ -43,12 +48,13 @@ def train(best_weights_path):
         seed=42,
     )
 
-def measure_fps(model,images_dir,max_frames=150):
-    imageFiles = sorted([f for f in os.listdir(images_dir) if f.endswith((".jpg","png","jpeg"))])
+
+def measure_fps(model, images_dir, max_frames=150):
+    imageFiles = sorted([f for f in os.listdir(images_dir) if f.endswith((".jpg", "png", "jpeg"))])
     imageFiles = imageFiles[:max_frames]
 
     # warm up
-    first_img = os.path.join(images_dir,imageFiles[0])
+    first_img = os.path.join(images_dir, imageFiles[0])
     res = model.predict(
         source=first_img,
         conf=0.01,
@@ -58,7 +64,7 @@ def measure_fps(model,images_dir,max_frames=150):
         device=DEVICE,
         verbose=False
     )
-    print("Boxes: ",len(res[0].boxes))
+    print("Boxes: ", len(res[0].boxes))
     frameCount = 0
     start_time = time.time()
     for img in imageFiles:
@@ -74,12 +80,15 @@ def measure_fps(model,images_dir,max_frames=150):
             verbose=False
         )
         frameCount += 1
-    total_time = time.time() - start_time
-    fps = frameCount / total_time if total_time > 0 else 0
+    total_time = time.time() - start_time  # calculates the total time it took
+    fps = frameCount / total_time if total_time > 0 else 0  # calculate the fps based on frame count and time
     return round(fps, 2)
 
+
+# this specific function is to validate the best inference hyperparameters obtained from validate function below
+# basically validate_best is created  to collect each dataset combination's best result in a single json file
 def validate_best(best_weights_path):
-    model = YOLO(best_weights_path)
+    model = YOLO(best_weights_path)  # warm up
     _ = model.predict(
         source=r"D:\datasets\gmot_yolo\val\images\airplane-0_000037.jpg",
         device=DEVICE,
@@ -89,13 +98,13 @@ def validate_best(best_weights_path):
     start_time = time.time()
 
     if torch.cuda.is_available():
-        torch.cuda.reset_peak_memory_stats()
+        torch.cuda.reset_peak_memory_stats()  # resets memory each run to avoid runs affecting each other
 
     results = model.val(
         data=yamlPath,
         split="val",
         imgsz=640,
-        conf=0.01,
+        conf=0.01,  # best hyperparameter's obtained after running validate function below
         iou=0.6,
         max_det=500,
         batch=batchSize,
@@ -107,18 +116,20 @@ def validate_best(best_weights_path):
     )
 
     total_tm = time.time() - start_time
-    avg_inference_ms = results.speed["inference"]
-    fps = measure_fps(model,images_dir=r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\gmot_yolo\val\images", max_frames=150)
-
+    avg_inference_ms = results.speed["inference"]  # measure inference time
+    fps = measure_fps(model,
+                      images_dir=r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\datasets\gmot_yolo\val\images",
+                      max_frames=150)
+    # calculate peak vram
     peak_vram = torch.cuda.max_memory_allocated() / (1024 ** 2) if torch.cuda.is_available() else 0
 
-    metrics = {
+    metrics = {  # model name of course will change according to which dataset combination is evaluated
         "model": "coco",
         "conf": 0.05,
         "iou": 0.6,
         "max_det": 500,
         "detection_metrics": {
-            "precision": round(results.results_dict["metrics/precision(B)"], 4),
+            "precision": round(results.results_dict["metrics/precision(B)"], 4),  # storing metrics
             "recall": round(results.results_dict["metrics/recall(B)"], 4),
             "mAP50": round(results.results_dict["metrics/mAP50(B)"], 4),
             "mAP50-95": round(results.results_dict["metrics/mAP50-95(B)"], 4)
@@ -133,14 +144,15 @@ def validate_best(best_weights_path):
 
     os.makedirs(os.path.dirname(eval_results_path), exist_ok=True)
 
-    with open(eval_results_path, "a") as f:
+    with open(eval_results_path, "a") as f:  # writing the metrics to a json file
         f.write(json.dumps(metrics) + "\n")
+
 
 def validate(best_weights_path):
     model = YOLO(best_weights_path)
 
     confs = [0.01, 0.03, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
-    ious = [0.3, 0.4, 0.45, 0.5, 0.55, 0.6, 0.7, 0.8, 0.9]
+    ious = [0.3, 0.4, 0.45, 0.5, 0.55, 0.6, 0.7, 0.8, 0.9]  # grids for inference time hyperparameters
     dets = [100, 200, 300, 500, 750]
     agnostic = [True, False]
 
@@ -156,7 +168,7 @@ def validate(best_weights_path):
                 for det in dets:
                     start_time = time.time()
                     if torch.cuda.is_available():
-                        torch.cuda.reset_peak_memory_stats()
+                        torch.cuda.reset_peak_memory_stats()  # evaluation of each combination within the grids
                     results = model.val(
                         data=yamlPath,
                         split="val",
@@ -181,7 +193,7 @@ def validate(best_weights_path):
                     metrics = {
                         "model": "YOLO11m",
                         "conf": conf,
-                        "iou": iou,
+                        "iou": iou,  # storing the results
                         "max_det": det,
                         "agnostic_nms": agno,
                         "detection_metrics": {
@@ -200,13 +212,14 @@ def validate(best_weights_path):
 
                     os.makedirs(os.path.dirname(eval_results_path), exist_ok=True)
 
-                    with open(eval_results_path, "a") as f:
+                    with open(eval_results_path, "a") as f:  # writing the results to a json file
                         f.write(json.dumps(metrics) + "\n")
+
 
 if __name__ == "__main__":
     print("CWD:", os.getcwd())
     print("FINAL YAML PATH:", Path(yamlPath).resolve())
-
+    # best weights change according to the dataset combination's pts
     best_weights = r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\yolo11m.pt"
-
+    # validate() # run the functions here 
     validate_best(best_weights)

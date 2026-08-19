@@ -1,19 +1,19 @@
-# gmot is already defined so no need for a bridge there
 
-path: D:\  # lab pc specific path so pu `.` for own pc
+
+path: D:\
 train:
   - datasets/gmot_yolo/train/images
   - datasets/bridge_yolo/shanghaitech/train/images
   - datasets/bridge_yolo/ucsd/train/images
   - datasets/bridge_yolo/avenue/train/images
-  - datasets/bridge_yolo/avenue/val/images # add when you do all datasets
+  - datasets/bridge_yolo/avenue/val/images  # added here because it is not professionally annotated.
+
 val:
-  - datasets/gmot_yolo/val/images
+  - datasets/gmot_yolo/val/images #  professionally val split annotated
 test:
-  - datasets/gmot_yolo/test/images
+  - datasets/gmot_yolo/test/images # professionally test split  annotated
+# yaml is used for detector evaluations tracker evaluation part does not use it
 
-
-# unified class set (add 'bridge' at index 10)
 nc: 10
 names:
   0: airplane
@@ -26,13 +26,5 @@ names:
   7: insect
   8: stock
   9: car
-# not last layer only hyper parameter tuning evaluation
-# which pretrained models has the better result yolov8s
-# whicch is the best  can they be optimized ways of optimizing the trackers
-# prepare research proposal
-# search for optimization methods
-# accuracy tracking timer put and memory usage ,
-# comparative evaluation of trying multiple methods or tuning the methods and compararison between them to see which is better
-# processing speed
-# expolarition of methods
+
 
