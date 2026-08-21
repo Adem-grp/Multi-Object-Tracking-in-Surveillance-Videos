@@ -13,7 +13,7 @@ Metrics = ["HOTA (%)", "MOTA (%)", "IDF1 (%)",
            "ID Switches", "MostlyTracked", "MostlyLost", "FPS",
            "Latency mean (ms)", "Latency 95 (ms)", "Peak VRAM (MB)"
            ]
-
+# average results across all datasets for each tracker and save to a new CSV file
 def average_results():
     rows = []
     for tracker_name,csv_path in csv_paths.items():

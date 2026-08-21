@@ -1,8 +1,8 @@
-# Compression Pipeline — Structured Pruning + Post-Training Quantisation
-# Takes the trained YOLO detector, applies pruning and quantisation at various
-# levels, fine-tunes after pruning to recover accuracy, then runs the full
-# tracker pipeline on each compressed model to measure the quality/speed tradeoff.
-
+""" Compression Pipeline — Structured Pruning + Post-Training Quantisation
+ Takes the trained YOLO detector, applies pruning and quantisation at various
+ levels, fine-tunes after pruning to recover accuracy, then runs the full
+ tracker pipeline on each compressed model to measure the quality/speed tradeoff.
+"""
 import os
 import time
 import shutil
@@ -20,11 +20,9 @@ from boxmot.trackers.bytetrack.byte_tracker import BYTETracker
 from deep_sort_realtime.deepsort_tracker import DeepSort
 from ocsort.ocsort import OCSort
 import time
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # use first GPU only
 
-# ---------------------------------------------------------------------------
-# Paths
-# ---------------------------------------------------------------------------
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+
 DetectorWeights = r"D:\runs_final\detect\all_datasets\weights\best.pt"
 TrainRunDir = r"D:\runs_final\detect\all_datasets"  # folder of the original training run, used to find the yaml
 OutDir = Path(r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\tracker_outputs")
@@ -38,9 +36,7 @@ TrainDataYaml = r"C:\Users\k2549603\PycharmProjects\Multi-Object-Tracking-in-Sur
 # sparsity levels to test — 0.2 removes 20% of filters, 0.4 removes 40%, etc.
 PruneLevels = [0.2, 0.4, 0.6]
 
-# ---------------------------------------------------------------------------
-# Evaluation datasets — same as Tracker_Pipeline
-# ---------------------------------------------------------------------------
+# Datasets to evaluate on — each dataset is a list of (img_folder, gt_path) tuples
 DATASETS = {
     "avenue": [
         (r"D:\datasets\avenue_yolo\test\img1",
@@ -86,9 +82,7 @@ DATASETS = {
          r"D:\datasets\gmot_yolo\test\boat-1\gt\gt.txt"), ],
 }
 
-# best tracker params found from Tracker_Pipeline tuning — update these before running evaluation
-# conf and iou are the best values found in stage 1 of tuning for each tracker
-EvalTrackers = {
+EvalTrackers = {  # best hyperparameters of the best performing tracker
     "bytetrack": {
         "params": {"track_high_thresh": 0.4, "track_buffer": 20, "match_thresh": 0.8},
         "conf": 0.01,
@@ -97,9 +91,6 @@ EvalTrackers = {
 }
 
 
-# ---------------------------------------------------------------------------
-# Yaml builder
-# ---------------------------------------------------------------------------
 def build_train_yaml():
     CompressDir.mkdir(parents=True, exist_ok=True)
     yaml_out = Path(TrainDataYaml)
@@ -108,7 +99,7 @@ def build_train_yaml():
         print(f"[YAML] Using existing {yaml_out}")
         return str(yaml_out)
 
-    # try to find the yaml used in the original training run — cleanest source
+    # try to find the yaml used in the original training run
     run_dir = Path(TrainRunDir)
     found = list(run_dir.glob("*.yaml")) + list(run_dir.parent.glob("*.yaml"))
     if found:
@@ -117,7 +108,7 @@ def build_train_yaml():
         return str(yaml_out)
 
     # fallback — scan the datasets folder and build a yaml from whatever train/val folders exist
-    project_root = Path(DetectorWeights).parents[3]  # go 4 levels up from best.pt to project root
+    project_root = Path(DetectorWeights).parents[3]
     datasets_dir = project_root / "datasets"
     train_imgs, val_imgs = [], []
     for d in datasets_dir.iterdir():
@@ -125,19 +116,16 @@ def build_train_yaml():
             continue
         ti = d / "train" / "images"
         vi = d / "val" / "images"
-        if ti.exists(): train_imgs.append(str(ti))  # collect all training image folders
-        if vi.exists(): val_imgs.append(str(vi))  # collect all validation image folders
+        if ti.exists(): train_imgs.append(str(ti))
+        if vi.exists(): val_imgs.append(str(vi))
     with open(yaml_out, "w") as f:
-        # write the yaml — nc and names must match your actual training setup
+        # write a yaml
         yaml.dump({"path": str(datasets_dir), "train": train_imgs,
                    "val": val_imgs, "nc": 1, "names": {0: "person"}}, f)
     print(f"[YAML] Built from dataset folders: {yaml_out}")
     return str(yaml_out)
 
 
-# ---------------------------------------------------------------------------
-# Pruning helpers
-# ---------------------------------------------------------------------------
 def get_prunable_convs(nn_model):
     prunable = []
     for name, module in nn_model.named_modules():  # walk every layer in the network
@@ -153,10 +141,8 @@ def apply_structured_pruning(nn_model, sparsity: float):
     prunable = get_prunable_convs(nn_model)  # get all layers safe to prune
     for name, module in prunable:
         n_filters = module.weight.shape[0]  # total number of output filters in this layer
-        # compute how many filters to remove — at least 1, at most all-but-1
         n_prune = min(max(1, int(n_filters * sparsity)), n_filters - 1)
         # ln_structured: score each filter by L1 norm (sum of absolute weight values)
-        # remove the n_prune lowest-scoring filters along dimension 0 (output channels)
         torch_prune.ln_structured(module, name="weight", amount=n_prune, n=1, dim=0)
         # remove() bakes the pruning mask permanently into the weight tensor
         # without this the mask is a separate hook — still applied but not saved in the weights
@@ -169,36 +155,33 @@ def apply_structured_pruning(nn_model, sparsity: float):
     return nn_model
 
 
-# ---------------------------------------------------------------------------
-# Fine-tuning
-# ---------------------------------------------------------------------------
 def finetune(weights_path: Path, out_dir: Path, epochs: int):
     print(f"  Fine-tuning for {epochs} epochs ...")
     if torch.cuda.is_available():
         print("  Using GPU")
     else:
         print(" Not Using CPU")
-    model = YOLO(str(weights_path))  # load the pruned weights
+    model = YOLO(str(weights_path))  # train the detector for a few epochs to recover accuracy after pruning
     results = model.train(
-        data=TrainDataYaml,  # silver-labeled + GMOT training data
-        epochs=epochs,  # configurable — default 15
+        data=TrainDataYaml,
+        epochs=epochs,
         imgsz=Imgsz,
         batch=16,
         device=DEVICE,
-        project=str(out_dir),  # save fine-tune run inside the variant's folder
+        project=str(out_dir),
         name="finetune",
-        exist_ok=True,  # overwrite if already exists
+        exist_ok=True,
         verbose=False,
         optimizer="SGD",
-        lr0=1e-4,  # very low starting lr — recovering accuracy, not retraining
-        lrf=1e-5,  # final lr — decays from lr0 to lrf over the epochs
-        warmup_epochs=1,  # 1 epoch warmup before full lr kicks in
-        mosaic=0.5,  # moderate augmentation — 0.5 means 50% of batches use mosaic
-        mixup=0.0,  # no mixup — too aggressive for recovery fine-tuning
-        patience=5,  # stop early if val loss doesn't improve for 5 epochs
+        lr0=1e-4,
+        lrf=1e-5,
+        warmup_epochs=1,  # warmup for 1 epoch to avoid divergence at the start
+        mosaic=0.5,
+        mixup=0.0,
+        patience=5,
     )
     if torch.cuda.is_available():
-        print(f"Peak VRAM during training {torch.cuda.max_memory_allocated(DEVICE)/1024/1024:.1f} MB")
+        print(f"Peak VRAM during training {torch.cuda.max_memory_allocated(DEVICE) / 1024 / 1024:.1f} MB")
     # model.trainer.best points directly to best.pt saved during training
     best = Path(model.trainer.best)
     if not best.exists():
@@ -207,17 +190,13 @@ def finetune(weights_path: Path, out_dir: Path, epochs: int):
     return best
 
 
-# ---------------------------------------------------------------------------
-# Quantisation
-# ---------------------------------------------------------------------------
 def quantise_fp16(weights_path: Path, out_path: Path):
     print("  Exporting FP16 ...")
     model = YOLO(str(weights_path))
-    # export to TorchScript with half=True — Ultralytics converts all weights to FP16
-    # TorchScript format serialises the model so it can be loaded without the class definition
-    model.export(format="torchscript", imgsz=Imgsz, half=True, device=DEVICE)  # make sure it is pt
-    # Ultralytics saves the exported file next to the weights file with .torchscript extension
-    exported = weights_path.parent / (weights_path.stem + ".torchscript")  # make sure it is pt not torchscript
+
+    model.export(format="torchscript", imgsz=Imgsz, half=True, device=DEVICE)
+
+    exported = weights_path.parent / (weights_path.stem + ".torchscript")
     if exported.exists():
         shutil.copy(exported, out_path)  # copy to the variant's output folder
         print(f"  FP16 saved: {out_path}")
@@ -231,37 +210,29 @@ def quantise_fp16(weights_path: Path, out_path: Path):
 def quantise_int8(weights_path: Path, out_path: Path):
     print("  Applying INT8 quantisation ...")
     yolo = YOLO(str(weights_path))
-    model = yolo.model.float().cpu()  # get the raw nn.Module, convert to FP32, move to CPU
-    # quantisation must happen on CPU — PyTorch's quantisation backend doesn't support CUDA
-    # .float() ensures we start from FP32 not FP16, since scale factors need FP32 precision
-    model.eval()  # set to eval mode — disables dropout and batch norm training behaviour
-    # quantize_dynamic: weights are quantised to INT8 now, activations are quantised at runtime
-    # {torch.nn.Linear} = only Linear layers — Conv2d INT8 needs TensorRT, not supported here
-    # dtype=torch.qint8 = 8-bit signed integer range (-128 to 127)
+    model = yolo.model.float().cpu()
+    model.eval()
     quantised = torch.quantization.quantize_dynamic(
         model, {torch.nn.Linear}, dtype=torch.qint8,
     )
-    # save as a dict with both the state dict and the path to original weights
-    # state_dict() = flat {layer_name: tensor} dict of all parameters
-    # base_weights stored for reference so you can reload the architecture later
+
     torch.save({"model_state": quantised.state_dict(),
                 "base_weights": str(weights_path)}, out_path)
     print(f"  INT8 state dict saved: {out_path}")
     return out_path
 
 
-# ---------------------------------------------------------------------------
-# Variant list — defines every model configuration to produce
-# ---------------------------------------------------------------------------
+# Variant list defines every model configuration to produce
+
 def build_variants(epochs: int):
-    variants = []  # list of dicts, one per model variant
+    variants = []
 
     # baseline — original weights unchanged, used as the reference point
     variants.append({"name": "baseline", "sparsity": 0.0, "finetune": False,
                      "quantisation": "none", "weights_path": None, "loadable": True})
 
-    for sparsity in PruneLevels:  # loop over [0.2, 0.4, 0.6]
-        pct = int(sparsity * 100)  # convert to integer percentage for naming e.g. 20, 40, 60
+    for sparsity in PruneLevels:
+        pct = int(sparsity * 100)
 
         # prune only — no fine-tune, to measure raw pruning impact
         variants.append({"name": f"prune{pct}", "sparsity": sparsity, "finetune": False,
@@ -287,23 +258,22 @@ def build_variants(epochs: int):
     return variants
 
 
-# ---------------------------------------------------------------------------
-# Compression runner — creates all model files
-# ---------------------------------------------------------------------------
+# Compression runner creates all model files
+
 def run_compression(epochs: int):
     CompressDir.mkdir(parents=True, exist_ok=True)
-    build_train_yaml()  # ensure training yaml exists before fine-tuning
-    variants = build_variants(epochs)  # get the full list of variants to produce
+    build_train_yaml()
+    variants = build_variants(epochs)
 
     for v in variants:
-        vdir = CompressDir / v["name"]  # each variant gets its own subfolder
+        vdir = CompressDir / v["name"]
         vdir.mkdir(parents=True, exist_ok=True)
         pruned_pt = vdir / "pruned.pt"  # intermediate: pruned weights before fine-tune
         ft_pt = vdir / "finetuned.pt"  # intermediate: fine-tuned weights
         final_pt = vdir / "model.pt"  # final output: what evaluation loads
         print(f"\n[Variant] {v['name']}")
 
-        # baseline is special — just copy the original weights, no processing needed
+        
         if v["sparsity"] == 0.0 and not v["finetune"] and v["quantisation"] == "none":
             shutil.copy(DetectorWeights, final_pt)
             v["weights_path"] = final_pt  # record where the weights ended up
@@ -362,9 +332,6 @@ def run_compression(epochs: int):
     return variants
 
 
-# ---------------------------------------------------------------------------
-# Tracker builder — identical to Tracker_Pipeline
-# ---------------------------------------------------------------------------
 def build_tracker(tracker_name, params):
     if tracker_name == "deepsort":
         return DeepSort(max_cosine_distance=params["max_dist"], max_age=params["max_age"],
@@ -381,10 +348,6 @@ def build_tracker(tracker_name, params):
     raise ValueError(f"Unknown tracker: {tracker_name}")
 
 
-# ---------------------------------------------------------------------------
-# Sequence runner — same as Tracker_Pipeline but weights_path is injected
-# so each compressed model variant can be swapped in
-# ---------------------------------------------------------------------------
 def tracker_on_sequence(img_folder, model, tracker_name, tracker_params,
                         output_path, conf, iou):
     output_path = Path(output_path)
@@ -459,9 +422,6 @@ def tracker_on_sequence(img_folder, model, tracker_name, tracker_params,
             "latency_p95_ms": lp, "peak_vram_mb": vram}
 
 
-# ---------------------------------------------------------------------------
-# Evaluation helpers — identical to Tracker_Pipeline
-# ---------------------------------------------------------------------------
 def load_mot(mot_path):
     path = Path(mot_path)
     if not path.exists() or path.stat().st_size == 0:  # handle missing or empty files
@@ -561,9 +521,8 @@ def evaluate_dataset(dataset_name, weights_path, tracker_name, tracker_params,
     return avg
 
 
-# ---------------------------------------------------------------------------
-# Evaluation runner — runs every loadable variant through the tracker pipeline
-# ---------------------------------------------------------------------------
+# Evaluation runner: it runs every loadable variant through the tracker pipeline
+
 def run_evaluation(variants, tracker_name):
     cfg = EvalTrackers[tracker_name]  # look up best params for this tracker
     tracker_params = cfg["params"]
@@ -650,9 +609,6 @@ def _print_summary(df, tracker_name):
                                 "HOTA (%)", "FPS", "Latency mean (ms)"]].to_string(index=False))
 
 
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
 if __name__ == "__main__":
     CompressDir.mkdir(parents=True, exist_ok=True)
 

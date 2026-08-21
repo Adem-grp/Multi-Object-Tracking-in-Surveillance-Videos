@@ -6,7 +6,7 @@ import pandas as pd
 from collections import Counter
 from pathlib import Path
 
-# ---- point these to your tuning CSVs ----
+
 CSV_PATHS = {
     "bytetrack": r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\tracker_outputs\tuning_bytetrack.csv",
     "deepsort": r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\tracker_outputs\tuning_deepsort.csv",
@@ -21,7 +21,7 @@ TRACKER_PARAM_COLS = {
 
 EXPECTED_DATASETS = ["avenue", "UCSD", "shanghai", "gmot"]
 
-
+# find the best conf/iou and tracker params averaged across all datasets for a given tracker
 def verify_and_find_best(tracker, csv_path, param_cols):
     print(f"\n{'=' * 60}")
     print(f"TRACKER: {tracker.upper()}")
@@ -95,7 +95,6 @@ def verify_and_find_best(tracker, csv_path, param_cols):
         else:
             print(f"    {ds}: missing")
 
-    # --- final summary ---
     print(f"\n[FINAL PARAMS — {tracker.upper()}]")
     print(f"  conf:            {best_conf}")
     print(f"  iou:             {best_iou}")

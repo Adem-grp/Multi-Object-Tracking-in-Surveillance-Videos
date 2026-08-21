@@ -1,7 +1,6 @@
-# runs final all dataset detection model version is chosen to be best since it achieves near highest mAP and has less
-# computational cost with 23 boxes while the best mAP GMOT+UCSD produces 70 boxes
+# Final detection model selected based on near-best mAP with lower computational cost.
+# The selected model produces 23 boxes per image compared with 70 for the highest-mAP GMOT+UCSD model.
 
-import argparse
 import time
 import cv2
 import torch
@@ -10,39 +9,27 @@ import pandas as pd
 import motmetrics as mm
 from itertools import product
 from pathlib import Path
-
-from trackeval.metrics import HOTA
 from ultralytics import YOLO
 from boxmot.trackers.bytetrack.byte_tracker import BYTETracker
 from deep_sort_realtime.deepsort_tracker import DeepSort
 from ocsort.ocsort import OCSort
+from trackeval.metrics import HOTA
 
-# TrackEval needed for HOTA computation
-try:
-    import trackeval
-
-    TRACKEVAL = True
-except ImportError:
-    TRACKEVAL = False
-    print("Trackeval not available")
-
-# change this paths for lab computer before running
 DetectorWeights = r"D:\runs_final\detect\all_datasets\weights\best.pt"
 OutDir = Path(r"C:\Users\USER\PycharmProjects\Multi-Object-Tracking-in-Surveillance-Videos\tracker_outputs")
 
-# ReID is for deepsort it will be downloaded automatically after first run
-ReID_weights = Path("osnet_x0_25_msmt17.pt")
 Imgsz = 640
+# Default conf and iou used for baseline evaluation
 Def_conf = 0.01
 Def_iou = 0.6
-Byte_conf= 0.01
+# Best conf and iou values per tracker based on tuning results.
+Byte_conf = 0.01
 Byte_iou = 0.5
-Deep_conf= 0.3
+Deep_conf = 0.3
 Deep_iou = 0.5
 OC_conf = 0.2
 OC_iou = 0.5
-# Datasets since there are multiple videos per dataset it is important to arrange the ground truths and video paths
-# change these paaths after putting the datasets folder to the hard drive
+# Each dataset has its own sequences and ground truth labels.
 DATASETS = {
     "avenue": [
         (r"D:\datasets\avenue_yolo\test\img1",
@@ -90,7 +77,7 @@ DATASETS = {
 
 TrackerGrids = {
     "deepsort": {
-        "max_dist": [0.1, 0.2, 0.3,0.5],
+        "max_dist": [0.1, 0.2, 0.3, 0.5],
         "max_age": [30, 50, 70, 100],
         "n_init": [1, 3, 5],
         "max_iou_dist": [0.5, 0.7, 0.9],
@@ -101,8 +88,8 @@ TrackerGrids = {
         "match_thresh": [0.7, 0.8, 0.9],
     },
     "ocsort": {
-        "det_thresh": [0.3,0.4, 0.5, 0.6, 0.7],
-        "max_age": [20, 30, 40, 50, 70,100],
+        "det_thresh": [0.3, 0.4, 0.5, 0.6, 0.7],
+        "max_age": [20, 30, 40, 50, 70, 100],
         "min_hits": [1, 3],
         "iou_threshold": [0.2, 0.3, 0.4, 0.5, 0.6, 0.7],
     },
@@ -115,27 +102,23 @@ ConfGrid = {
 }
 IouGrid = [0.5, 0.6, 0.7]
 """
-best combination
-TrackerDefaults = {
+# best tracker parameter combinations found during tuning step
+TrackerDefaults_Best = {
     #"deepsort": {"max_dist": 0.1, "max_age": 30, "n_init": 3, "max_iou_dist": 0.9},
     #"bytetrack": {"track_high_thresh": 0.4, "track_buffer": 20, "match_thresh": 0.8},
     #"ocsort": {"det_thresh": 0.3, "max_age": 20, "min_hits": 1, "iou_threshold": 0.6},
 }
-
 """
-#baseline values
+# baseline metrics
 TrackerDefaults = {
     "deepsort": {"max_dist": 0.2, "max_age": 30, "n_init": 3, "max_iou_dist": 0.7},
     "bytetrack": {"track_high_thresh": 0.5, "track_buffer": 30, "match_thresh": 0.8},
     "ocsort": {"det_thresh": 0.5, "max_age": 30, "min_hits": 3, "iou_threshold": 0.3},
 }
 
-
-
-
 OutDir.mkdir(parents=True, exist_ok=True)
 
-
+# Initialize the chosen tracker with its parameters.
 def build_tracker(tracker, params):
     if tracker == "deepsort":
         return DeepSort(
@@ -164,7 +147,7 @@ def build_tracker(tracker, params):
     else:
         raise ValueError(f"Tracker {tracker} is not supported.")
 
-
+# Function to run the tracker on a sequence of images, perform detection, and save the tracking results in MOT format
 def tracker_on_sequence(img_folder, tracker_name, tracker_params, output_path, conf, iou):
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -179,6 +162,7 @@ def tracker_on_sequence(img_folder, tracker_name, tracker_params, output_path, c
     mot_lines = []
     frame_times = []
     total_time = 0.0
+    # Process each frame for the selected tracker with the help of the detector
     for frame_idx, img_path in enumerate(frame_paths):
         frame = cv2.imread(str(img_path))
         if frame is None:
@@ -190,6 +174,7 @@ def tracker_on_sequence(img_folder, tracker_name, tracker_params, output_path, c
         results = model.predict(
             frame, conf=conf, iou=iou, imgsz=Imgsz, verbose=False,
         )
+        # Convert detections into [x1, y1, x2, y2, conf, cls] format for the tracker
         dets = []
         if results[0].boxes is not None and len(results[0].boxes):
             boxes = results[0].boxes.xyxy.cpu().numpy()
@@ -200,12 +185,14 @@ def tracker_on_sequence(img_folder, tracker_name, tracker_params, output_path, c
         dets_np = np.array(dets) if dets else np.empty((0, 6))
 
         active_tracks = []
+        # Convert detections to the format required by each tracker
         if tracker_name == "deepsort":
             ds_dets = []
             for d in dets_np:
                 x1, y1, x2, y2, c = d[0], d[1], d[2], d[3], d[4]
                 ds_dets.append(([x1, y1, x2 - x1, y2 - y1], c, 0))
             ds_tracks = tracker.update_tracks(ds_dets, frame=frame)
+            # Keep only confirmed tracks and convert them to the required output format
             for t in ds_tracks:
                 if not t.is_confirmed():
                     continue
@@ -217,6 +204,7 @@ def tracker_on_sequence(img_folder, tracker_name, tracker_params, output_path, c
             else:
                 bt_dets = np.empty((0, 6))
             bt_tracks = tracker.update(bt_dets, frame)
+            # Extract bounding boxes, track IDs and conf scores from the ByteTrack output
             for t in bt_tracks:
                 x1, y1, x2, y2, tid, conf_t = t[0], t[1], t[2], t[3], int(t[4]), t[5]
                 active_tracks.append((x1, y1, x2, y2, tid, conf_t))
@@ -226,6 +214,7 @@ def tracker_on_sequence(img_folder, tracker_name, tracker_params, output_path, c
             else:
                 oc_input = torch.zeros((0, 6))
             oc_tracks = tracker.update(oc_input, frame)
+            # Extract bounding boxes, track IDs and conf scores from the OCSort output
             for t in oc_tracks:
                 active_tracks.append((t[0], t[1], t[2], t[3], int(t[4]), t[6]))
 
@@ -233,7 +222,7 @@ def tracker_on_sequence(img_folder, tracker_name, tracker_params, output_path, c
         frame_ms = (t_end - t_start) * 1000
         total_time += (t_end - t_start)
         frame_times.append(frame_ms)
-
+        # Store the results in MOTChallenge format.
         for x1, y1, x2, y2, tid, tconf in active_tracks:
             w = x2 - x1
             h = y2 - y1
@@ -265,12 +254,13 @@ def load_mot(mot_path):
     df = pd.read_csv(mot_path, header=None, names=["frame", "id", "x", "y", "w", "h", "conf", "cx", "cy", "cz"])
     return df[["frame", "id", "x", "y", "w", "h"]].copy()
 
-
+# Evaluate one sequence using MOT metrics and HOTA
 def evaluate_sequence(gt_path, pred_path, iou_threshold=0.5):
     gt_df = load_mot(gt_path)
     pred_df = load_mot(pred_path)
     acc = mm.MOTAccumulator(auto_id=True)
     all_frames = sorted(set(gt_df["frame"]) | set(pred_df["frame"]))
+    # # Match ground-truth and predicted boxes using IoU distances for each frame
     for frame in all_frames:
         gt_frame = gt_df[gt_df["frame"] == frame]
         pred_frame = pred_df[pred_df["frame"] == frame]
@@ -283,6 +273,7 @@ def evaluate_sequence(gt_path, pred_path, iou_threshold=0.5):
         else:
             distances = np.empty((len(gt_boxes), len(pred_boxes)))
         acc.update(gt_ids, pred_ids, distances)
+    # Compute standard MOT metrics.
     mh = mm.metrics.create()
     summary = mh.compute(
         acc,
@@ -298,11 +289,12 @@ def evaluate_sequence(gt_path, pred_path, iou_threshold=0.5):
     r["hota_pct"] = round(hota, 2) if hota is not None else 0.0
     return r
 
-
+# Evaluate each dataset and aggregate the results
 def evaluate_dataset(dataset_name, tracker_name, tracker_params, output_subdir, conf, iou):
     clips = DATASETS[dataset_name]
     clip_rows = []
     timing_rows = []
+    # Each sequence is processed independently, and the metrics are collected
     for i, (img_folder, gt_path) in enumerate(clips):
         seq_name = Path(img_folder).parent.name
         out_file = output_subdir / f"{seq_name}_{tracker_name}.txt"
@@ -311,7 +303,7 @@ def evaluate_dataset(dataset_name, tracker_name, tracker_params, output_subdir, 
         timing_rows.append(timing)
         eval_seq = evaluate_sequence(gt_path, str(out_file))
         clip_rows.append(eval_seq)
-    avg = {}
+    avg = {} # calculate average metrics across all sequences in the dataset
     for k in ["mota_pct", "idf1_pct", "hota_pct", "num_switches", "num_misses",
               "num_false_positives", "mostly_tracked", "mostly_lost", "num_fragmentations"]:
         vals = [row[k] for row in clip_rows if k in row]
@@ -323,7 +315,8 @@ def evaluate_dataset(dataset_name, tracker_name, tracker_params, output_subdir, 
     avg["num_clips"] = len(clips)
     return avg
 
-
+# Run baseline evaluation for all trackers and datasets, saving results to CSV
+# To avoid code duplication, this function was used both for baseline and final evaluation
 def run_baseline():
     print("Baseline evaluation")
     rows = []
@@ -333,12 +326,12 @@ def run_baseline():
             print(f" Dataset {dataset_name}")
             tmp_dir = OutDir / "_tmp" / dataset_name
             tmp_dir.mkdir(parents=True, exist_ok=True)
-            avg = evaluate_dataset(dataset_name, tracker_name, default_params, tmp_dir, Deep_conf, Deep_iou)
+            avg = evaluate_dataset(dataset_name, tracker_name, default_params, tmp_dir, Def_conf, Def_iou)
             row = {
                 "tracker_name": tracker_name,
                 "dataset_name": dataset_name,
-                "conf": Deep_conf,
-                "iou": Deep_iou,
+                "conf": Def_conf,
+                "iou": Def_iou,
                 "HOTA (%)": avg["hota_pct"],
                 "MOTA (%)": avg["mota_pct"],
                 "IDF1 (%)": avg["idf1_pct"],
@@ -353,10 +346,10 @@ def run_baseline():
             rows.append(row)
             print(f"    HOTA:{row['HOTA (%)']}%  MOTA:{row['MOTA (%)']}%  IDF1:{row['IDF1 (%)']}%  FPS:{row['FPS']}")
     df = pd.DataFrame(rows)
-    df.to_csv(OutDir / f"final_results_deepsort.csv", index=False)
+    df.to_csv(OutDir / f"baseline_results.csv", index=False)
     print(df.to_string(index=False))
 
-
+# Compute HOTA metric using trackeval for given ground truth and predicted dataframes
 def compute_hota(gt_df, pred_df, iou_threshold=0.5):
     hota_metric = HOTA({"THRESHOLD": iou_threshold})
     all_frames = sorted(set(gt_df["frame"]) | set(pred_df["frame"]))
@@ -366,6 +359,7 @@ def compute_hota(gt_df, pred_df, iou_threshold=0.5):
     pred_id_map = {v: i for i, v in enumerate(all_pred_ids)}
     gt_ids_list, tracker_ids_list, sim_list = [], [], []
     num_gt_dets, num_tracker_dets = 0, 0
+    # For HOTA calculation, build frame-level inputs that trackeval needs
     for frame in all_frames:
         gt_frame = gt_df[gt_df["frame"] == frame]
         pred_frame = pred_df[pred_df["frame"] == frame]
@@ -382,6 +376,7 @@ def compute_hota(gt_df, pred_df, iou_threshold=0.5):
         sim_list.append(sim)
         num_gt_dets += len(gt_ids)
         num_tracker_dets += len(pred_ids)
+    # Prepare the data dictionary for trackeval's HOTA evaluation
     data = {
         "num_timesteps": len(all_frames),
         "num_gt_dets": num_gt_dets,
@@ -395,14 +390,15 @@ def compute_hota(gt_df, pred_df, iou_threshold=0.5):
     res = hota_metric.eval_sequence(data)
     return float(np.mean(res["HOTA"])) * 100
 
-
+# First stage: tune conf and iou for each tracker and dataset
+# Second stage: tune tracker parameters using the best conf and iou from stage 1
 def run_tuning(tracker_name):
     print("Tuning")
     print("Tuning conf and iou")
     conf_vals = ConfGrid[tracker_name]
     iou_vals = IouGrid
     s1_rows = []
-    # load existing rows from a previous partial run so resuming doesn't overwrite them
+    # load existing rows from a previous run if it was interrupted
     csv_path = OutDir / f"tuning_{tracker_name}.csv"
     if csv_path.exists():
         existing = pd.read_csv(csv_path).to_dict(orient="records")
@@ -411,6 +407,7 @@ def run_tuning(tracker_name):
         print(f"  [Resume] Loaded {len(existing)} existing rows from {csv_path.name}")
     else:
         all_rows = []
+    # Stage 1: Evaluate conf and iou combinations for each dataset
     for dataset_name in DATASETS:
         print(f" Dataset {dataset_name}")
         for conf, iou in product(conf_vals, iou_vals):
@@ -438,9 +435,10 @@ def run_tuning(tracker_name):
             }
             s1_rows.append(row)
             all_rows.append(row)
-    # find the best conf/iou per dataset based on HOTA
+    # find the best conf and IoU combination per dataset based on HOTA
     s1_df = pd.DataFrame(s1_rows)
     best_conf_iou = {}
+    # Find the best detector thresholds (conf and iou) for each dataset
     for ds in DATASETS:
         subset = s1_df[s1_df["dataset_name"] == ds]
         if subset.empty:
@@ -456,10 +454,12 @@ def run_tuning(tracker_name):
     keys = list(grid.keys())
     combos = list(product(*grid.values()))
     print(f"{len(combos)} combos per dataset")
+    # Stage 2: Evaluate tracker parameter combinations for each dataset using the best conf and iou from stage 1
     for dataset_name in DATASETS:
         best_conf, best_iou = best_conf_iou[dataset_name]
         print(f" Dataset {dataset_name}: conf={best_conf} iou={best_iou} ")
         best_hota, best_combo = -1, None
+        # Evaluate all combinations of tracker parameters
         for combo in combos:
             params = dict(zip(keys, combo))
             run_id = "_".join(f"{k}{v}" for k, v in params.items())
@@ -489,7 +489,7 @@ def run_tuning(tracker_name):
         print(f"  [Checkpoint] {csv_path.name} saved ({len(all_rows)} rows)")
     print("Tuning complete")
 
-
+# Build a summary results table from the tuning results, showing the best configuration per dataset and tracker
 def build_results_table():
     print("Results table creation")
     rows = []
@@ -500,6 +500,7 @@ def build_results_table():
             continue
         df = pd.read_csv(csv_path)
         stage2 = df[df["stage"] == 2]
+        # Find the highest HOTA configuration for each dataset
         for dataset_name in DATASETS:
             subset = stage2[stage2["dataset_name"] == dataset_name]
             if subset.empty:
