@@ -86,7 +86,7 @@ def remap_labels(root=ROOT,mapping = mapping):
                 line = line.strip()
                 if not line:
                     continue
-                parts = line.strip()
+                parts = line.strip().split() # split the parts in case other class IDs are added in future
                 old_id = int(parts[0])
                 if old_id not in mapping:# detect unknown class ids
                     print(f"Unknown class ID {old_id} in {lf}")
