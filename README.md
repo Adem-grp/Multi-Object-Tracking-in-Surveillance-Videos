@@ -604,13 +604,6 @@ This project is provided for academic and research purposes. Ensure compliance w
 
 ---
 
-## 📧 Contact & Support
-
-For questions or issues regarding this implementation:
-- Check `YOLO_inference_evaluations/` for detailed metrics
-- Refer to tracker-specific documentation in `OC_SORT/`
-
----
 
 **Last Updated**: June 2026  
 **Status**: Complete Dissertation Implementation  
