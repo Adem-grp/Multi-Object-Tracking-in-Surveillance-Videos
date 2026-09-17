@@ -29,12 +29,12 @@ This project implements a production-ready multi-object tracking pipeline optimi
 
 ### Multi-Object Tracking Datasets
 
-| Dataset | Domain | Sequences | Category | Source |
-|---------|--------|-----------|----------|--------|
-| **GMOT-40** | Mixed Objects | 40 | Benchmark | Provided |
-| **CUHK Avenue** | Pedestrian | 1 | Anomaly Detection | Annotated via CVAT |
-| **ShanghaiTech Campus** | Pedestrian | 5 | Campus Scenes | Annotated via CVAT |
-| **UCSD Pedestrian** | Pedestrian Dense | 10 | Dense Crowds | Annotated via CVAT |
+| Dataset | Domain | Category | Source |
+|---------|--------|----------|--------|
+| **GMOT-40** | Mixed Objects | Benchmark | Provided |
+| **CUHK Avenue** | Pedestrian | Anomaly Detection | Annotated via CVAT |
+| **ShanghaiTech Campus** | Pedestrian | Campus Scenes | Annotated via CVAT |
+| **UCSD Pedestrian** | Pedestrian Dense | Dense Crowds | Annotated via CVAT |
 
 **Annotation Workflow**:
 - Deployed CVAT using Docker for bbox-based track annotation
@@ -603,9 +603,4 @@ This project is provided for academic and research purposes. Ensure compliance w
 - **Evaluation**: motmetrics & trackeval contributors
 
 ---
-
-
-**Last Updated**: June 2026  
-**Status**: Complete Dissertation Implementation  
-**Performance**: ~450+ FPS on RTX 4070 | HOTA ~0.48 | Real-time Ready
 
