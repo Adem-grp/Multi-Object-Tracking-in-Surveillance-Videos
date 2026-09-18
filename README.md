@@ -163,10 +163,6 @@ Full reference list with DOIs available in the accompanying dissertation.
 
 ---
 
-## Generative AI Disclosure
-
-Generative AI (Claude, Anthropic) was used to assist with debugging Python implementation code, generating data visualisation figures, and as a sounding board during manuscript writing. All experimental design, data collection, model training, hyperparameter tuning, dataset annotation, and interpretation of results were conducted independently by the author.
-
 ---
 
 ## Author
